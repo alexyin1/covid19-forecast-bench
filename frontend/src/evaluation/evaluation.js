@@ -7,13 +7,13 @@ import "./evaluation.css";
 import { Form, Select, Row, Col, Radio, List, Avatar } from "antd";
 
 const summaryCSV_1 =
-  "https://raw.githubusercontent.com/scc-usc/covid19-forecast-bench/master/evaluation/state_death_eval/summary_1_weeks_ahead_states.csv";
+  "https://raw.githubusercontent.com/alexyin1/covid19-forecast-bench/master/evaluation/state_death_eval/summary_1_weeks_ahead_states.csv";
 const summaryCSV_2 =
-  "https://raw.githubusercontent.com/scc-usc/covid19-forecast-bench/master/evaluation/state_death_eval/summary_2_weeks_ahead_states.csv";
+  "https://raw.githubusercontent.com/alexyin1/covid19-forecast-bench/master/evaluation/state_death_eval/summary_2_weeks_ahead_states.csv";
 const summaryCSV_3 =
-  "https://raw.githubusercontent.com/scc-usc/covid19-forecast-bench/master/evaluation/state_death_eval/summary_3_weeks_ahead_states.csv";
+  "https://raw.githubusercontent.com/alexyin1/covid19-forecast-bench/master/evaluation/state_death_eval/summary_3_weeks_ahead_states.csv";
 const summaryCSV_4 =
-  "https://raw.githubusercontent.com/scc-usc/covid19-forecast-bench/master/evaluation/state_death_eval/summary_4_weeks_ahead_states.csv";
+  "https://raw.githubusercontent.com/alexyin1/covid19-forecast-bench/master/evaluation/state_death_eval/summary_4_weeks_ahead_states.csv";
 const summaryCSV = [summaryCSV_1, summaryCSV_2, summaryCSV_3, summaryCSV_4];
 const { Option } = Select;
 
@@ -36,7 +36,7 @@ class Evaluation extends Component {
   componentWillMount = () => {
     this.formRef = React.createRef();
     Papa.parse(
-      `https://raw.githubusercontent.com/scc-usc/covid19-forecast-bench/master/evaluation/state_death_eval/summary_${this.state.timeSpan}_weeks_ahead_${this.state.region}.csv`,
+      `https://raw.githubusercontent.com/alexyin1/covid19-forecast-bench/master/evaluation/state_death_eval/summary_${this.state.timeSpan}_weeks_ahead_${this.state.region}.csv`,
       {
         download: true,
         header: true,
@@ -183,7 +183,7 @@ class Evaluation extends Component {
     });
     console.log(this.state);
     Papa.parse(
-      `https://raw.githubusercontent.com/scc-usc/covid19-forecast-bench/master/evaluation/state_death_eval/summary_${e.target.value}_weeks_ahead_${this.state.region}.csv`,
+      `https://raw.githubusercontent.com/alexyin1/covid19-forecast-bench/master/evaluation/state_death_eval/summary_${e.target.value}_weeks_ahead_${this.state.region}.csv`,
       {
         download: true,
         header: true,
@@ -198,7 +198,7 @@ class Evaluation extends Component {
       region: newRegion,
     });
     Papa.parse(
-      `https://raw.githubusercontent.com/scc-usc/covid19-forecast-bench/master/evaluation/state_death_eval/summary_${this.state.timeSpan}_weeks_ahead_${newRegion}.csv`,
+      `https://raw.githubusercontent.com/alexyin1/covid19-forecast-bench/master/evaluation/state_death_eval/summary_${this.state.timeSpan}_weeks_ahead_${newRegion}.csv`,
       {
         download: true,
         header: true,
