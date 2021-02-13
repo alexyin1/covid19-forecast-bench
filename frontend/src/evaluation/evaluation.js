@@ -29,7 +29,7 @@ class Evaluation extends Component {
       mainGraphData: {},
       errorType: "mae",
       timeSpan: "4",
-      lastDate: "",
+      lastDate: ""
     };
   }
 
