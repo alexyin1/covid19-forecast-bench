@@ -1,23 +1,23 @@
 [
     [{
-        “model” : ”USC”, 
-        “datatype” : 0, 
+        "model" : "USC", 
+        "datatype" : 0, 
         "days_after": 185, 
         "n_regions": 55, 
-        “data”: [202063,23064,25821,28724,31861]
+        "data": [202063,23064,25821,28724,31861]
     }],
         [{
-        “model” : ”USC”, 
-        “datatype” : 0, 
+        "model" : "USC", 
+        "datatype" : 0, 
         "days_after": 185, 
         "n_regions": 55, 
-        “data”: [202063,23064,25821,28724,31861]
+        "data": [202063,23064,25821,28724,31861]
     }],
         [{
-        “model” : ”USC”, 
-        “datatype” : 0, 
+        "model" : "USC", 
+        "datatype" : 0, 
         "days_after": 185, 
         "n_regions": 55, 
-        “data”: [202063,23064,25821,28724,31861]
+        "data": [202063,23064,25821,28724,31861]
     }]
 ]
