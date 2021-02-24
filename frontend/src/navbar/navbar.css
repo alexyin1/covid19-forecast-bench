@@ -39,6 +39,21 @@
 
 #nav-dropdown{
 
-    color:white !important;
+    background-color:  #990000 !important; 
+    color : white ;
     
+}
+.dropdown-menu{
+    background-color: #990000 !important;
+}
+.dropdown-item:hover .links{
+    color: #990000 !important;
+    transition-delay: 0s;
+}
+.links{
+    /*display: none;*/
+    display: block;
+    /*background:  #990000 !important;*/
+    color: white !important; 
+    text-decoration: none !important;
 }
