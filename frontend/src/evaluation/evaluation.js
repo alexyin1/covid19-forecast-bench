@@ -232,9 +232,13 @@ class Evaluation extends Component {
     // First filter out the covid hub baseline MAE average.
     let baselineAverageMAE = this.state.csvData.filter(method => method.id === "reich_COVIDhub_baseline")[0];
     let cutOff = 0;
+    let filter = this.state.filter;
+    console.log(filter);
     const rankingTableData = this.state.csvData.map(method => {
       const methodName = method.id;
       const methodType = this.isMLMethod(methodName) ? "ML/AI" : "Human-Expert";
+      const localFilter = this.isMLMethod(methodName) ? "ml":"human";
+      let filterMatch = false;
       let forecastCount = 0;
       let MAE_Sum = 0;
       let relativeMAE_Sum = 0;  // Sum of method_MAE/baseline_MAE
@@ -259,9 +263,14 @@ class Evaluation extends Component {
       if (method.id === "reich_COVIDhub_baseline") {
         relativeMAE = 1;
       }
+
+      if (((filter == 'all')|| (localFilter == filter)) &&  (cutOff == forecastCount)){
+        filterMatch = true;
+        console.log(filterMatch);
+      }
       relativeMAE = relativeMAE.toFixed(3);
-      return { methodName, methodType, averageMAE, relativeMAE, forecastCount };
-    }).filter(entry => (entry && entry.forecastCount) && ( cutOff == entry.forecastCount));  // Filter out methods without any forecasts.
+      return { methodName, methodType, averageMAE, relativeMAE, forecastCount, filterMatch };
+    }).filter(entry => (entry && entry.forecastCount && (entry.filterMatch == true)));  // Filter out methods without any forecasts.
     this.setState({
       rankingTableData: rankingTableData,
     });
@@ -447,6 +456,16 @@ class Evaluation extends Component {
   handleFilterChange = e => {
     this.setState({
       filter: e.target.value,
+    }, () => {
+      Papa.parse(
+        this.getUrl(), {
+          download: true,
+          worker: true,
+          header: true,
+          skipEmptyLines: true,
+          complete: result => {this.updateData(result, this.generateRanking)},
+        }
+      );
     });
   };
 
