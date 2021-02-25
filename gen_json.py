@@ -15,6 +15,7 @@ def pretty_write(path: str, data: dict):
             sorted_dict[model] = {}
             days = sorted(data[model].keys(), key=str.casefold)
             for day in days:
+                data[model][day] = [-1 if str(val)=='null' else val for val in data[model][day]]
                 cases = '{}'.format(sorted(data[model][day]))
                 sorted_dict[model][day] = cases    
         json.dump(sorted_dict, f, indent=2)
@@ -41,6 +42,7 @@ def read_forecast(forecast_path, model_name: str)-> dict:
 
 def read_single_csv(path: str) -> dict:
     df = pd.read_csv(path, index_col=0)
+    df.fillna(value='null', inplace=True)
     cases = {}
     for i, row in enumerate(df.iterrows()):
         case_data = row[1]
