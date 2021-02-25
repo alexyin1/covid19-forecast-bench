@@ -233,7 +233,7 @@ class Evaluation extends Component {
     let baselineAverageMAE = this.state.csvData.filter(method => method.id === "reich_COVIDhub_baseline")[0];
     let cutOff = 0;
     let filter = this.state.filter;
-    console.log(filter);
+    
     const rankingTableData = this.state.csvData.map(method => {
       const methodName = method.id;
       const methodType = this.isMLMethod(methodName) ? "ML/AI" : "Human-Expert";
@@ -266,7 +266,7 @@ class Evaluation extends Component {
 
       if (((filter == 'all')|| (localFilter == filter)) &&  (cutOff == forecastCount)){
         filterMatch = true;
-        console.log(filterMatch);
+        
       }
       relativeMAE = relativeMAE.toFixed(3);
       return { methodName, methodType, averageMAE, relativeMAE, forecastCount, filterMatch };
