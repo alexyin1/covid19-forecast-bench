@@ -13,20 +13,36 @@ import {Link} from 'react-router-dom';
 
 
 // class NavBar extends Component {
-const NavBar = () => {
+class NavBar extends Component {
   // const handleSelect = (eventKey) => () =>{
   //     console.log(eventKey);
   // }
-  function Eval(disease) {
-    //this.props.history.push({
-    //pathname: '#/evaluation',
-    //data: disease // your data array of objects
-  //})
+  state = {clicked: false}
+  constructor(props) {
+      super(props);
+      this.state = {
+         disease: 'default',
+      }
+   }
+
+   updateData = (data) => {
+      this.setState({ data });
+   }
+  
+  handleClick = (disease) => {
     console.log(disease)
+    this.setState(
+      { 
+        disease: disease, 
+      }
+      );
     // send data = covid
-    // go to evaluation page
-  }
+    // go to evaluation page 
+  };
+
+  render(){
     return (
+
         <Navbar collapseOnSelect expand="lg" className="navbar-header navbar-light">
           <Navbar.Brand href="#/"><img
                     className="logo"
@@ -38,13 +54,42 @@ const NavBar = () => {
             <Nav className="mr-auto">
               <Nav.Link className="navbar-link" href="#/">Home </Nav.Link>
 
-               <NavDropdown className = "navbar-link" id = "nav-dropdown" title="Evaluation">
+               <NavDropdown id = "nav-dropdown" title="Evaluation">
 
-                   <NavDropdown.Item  href = "#/evaluation" onClick = {() => Eval('Covid')}> Covid </NavDropdown.Item>
+                   <NavDropdown.Item>
+                      <Link 
+                          
+                          className = "links"
+                          to = {{
+                            pathname: 'evaluation',
+                            state: {disease: 'Covid'}
+                          }}
+                          > Covid 
+                          </Link>
 
-                  <NavDropdown.Item onClick = {() => Eval('Influenza')} >Influenza</NavDropdown.Item>
+                          </NavDropdown.Item>
 
-                  <NavDropdown.Item onClick = {() => Eval('ChickenPox')}>ChickenPox</NavDropdown.Item>
+                  <NavDropdown.Item>  
+                      <Link 
+                      className = "links"
+                          to = {{
+                            pathname: 'evaluation',
+                            state: {disease: 'Influenza'}
+                          }}
+                          >Influenza
+                          </Link>
+                          </NavDropdown.Item>
+
+                  <NavDropdown.Item>
+                      <Link 
+                      className = "links"
+                          to = {{
+                            pathname: 'evaluation',
+                            state: {disease: 'ChickenPox' }
+                          }}
+                          >ChickenPox
+                          </Link>
+                          </NavDropdown.Item>
 
               </NavDropdown>
               <Nav.Link className="navbar-link" href="#about">About Us</Nav.Link>
@@ -54,6 +99,7 @@ const NavBar = () => {
           </Navbar.Collapse>
         </Navbar>
     );
+  }
 }
 
 
