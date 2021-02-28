@@ -125,15 +125,9 @@ class Evaluation extends Component {
 
   componentWillMount = () => {
     this.formRef = React.createRef();
-    Papa.parse(
-      this.getUrl(), {
-        download: true,
-        worker: true,
-        header: true,
-        skipEmptyLines: true,
-        complete: this.initialize,
-      }
-    );
+    
+    //papa.parse and initialize
+    this.initialize();
   };
 
   getUrl = () => {
@@ -162,18 +156,18 @@ class Evaluation extends Component {
   }
 
   initialize = result => {
-    /*result.data.map((csvRow, index) => {
-      for (const col in csvRow) {
-        if (col === "" && csvRow[col] !== " ") {
-          this.setState(state => {
-            const methodList = state.methodList.concat(csvRow[col]);
-            return {
-              methodList,
-            };
-          });
-        }
-      }
-    });*/
+
+
+    result.data.map((csvRow,index) => {
+        Object.keys(jsonData).forEach(function(key) {
+            this.setState(state => {
+                const methodList = state.methodList.concat(key);
+                return{
+                    methodList,
+                };
+            });
+        });
+    });
 
     this.updateData(result, () => {
       // Initialize data range.
@@ -212,11 +206,9 @@ class Evaluation extends Component {
 
     anchorDatapoints.dataSeries = this.graphData("all");
 
-    const csvData = result.data
 
     this.setState(
       {
-        csvData: csvData,
         mainGraphData: { anchorDatapoints },
         maxDateRange: maxDateRange,
       },
@@ -255,16 +247,21 @@ class Evaluation extends Component {
     }
     return graph_data;
   }
-
+//--------------------------------------------------------------------- stopped implementing up to here ------------------------------------------------------
   generateRanking = () => {
     const selectedDateRange = this.state.selectedDateRange;
     // First filter out the covid hub baseline MAE average.
-    let baselineAverageMAE = this.state.csvData.filter(method => method.id === "reich_COVIDhub_baseline")[0];
+    let baselineAverageMAE = this.state.jsonData["reich_COVIDhub_baseline"];
     let cutOff = 0;
     let filter = this.state.filter;
-    console.log(filter);
-    /*
-    const rankingTableData = this.state.csvData.map(method => {
+
+    const rankingTableData = this.state.jsonData.map(method=> {
+        const methodName = method
+    })
+    
+    
+    
+    this.state.csvData.map(method => {
       const methodName = method.id;
       const methodType = this.isMLMethod(methodName) ? "ML/AI" : "Human-Expert";
       const localFilter = this.isMLMethod(methodName) ? "ml":"human";
@@ -304,7 +301,6 @@ class Evaluation extends Component {
     this.setState({
       rankingTableData: rankingTableData,
     });
-    */
   };
 
   methodIsSelected = method => {
