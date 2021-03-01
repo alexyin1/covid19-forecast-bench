@@ -1,6 +1,4 @@
 import React, { Component } from "react";
-import Papa from "papaparse";
-import { readRemoteFile } from "react-papaparse";
 import Evalgraph from "./evalgraph";
 import Evalmap from "./evalmap";
 import RankingTable from "./rankingTable";
@@ -11,6 +9,7 @@ import ReactGA from "react-ga";
 
 const { Option } = Select;
 
+// TODO: Add list of current regions to state and implement addRegion and removeRegion functions
 const US_STATES = [
   "Washington",
   "Illinois",
@@ -93,7 +92,6 @@ class Evaluation extends Component {
       mlMethods: [],
       methodList: [],
       allMethods: [],
-      csvData: [],
       mainGraphData: {},
       rankingTableData: [],
       metrics: "MAE",
@@ -101,7 +99,8 @@ class Evaluation extends Component {
       forecastType: "state_death_eval",
       timeSpan: "avg",
       maxDateRange: [],
-      selectedDateRange: []
+      selectedDateRange: [],
+      jsonData: {},
     };
   }
 
@@ -109,11 +108,13 @@ class Evaluation extends Component {
     ReactGA.initialize("UA-186385643-2");
     ReactGA.pageview("/covid19-forecast-bench/evaluation");
 
+    var data = this.parseJsonUrl();
+    setTimeout(() => {this.initialize(data);}, 1000);
     try{
       if(this.props.match.params !== undefined && this.props.location.state!== undefined){
           const {handle} = this.props.match.params;
           const {disease} = this.props.location.state;
-          console.log("test")
+          //console.log("test")
           console.log(disease);
         }
       }
@@ -124,157 +125,186 @@ class Evaluation extends Component {
 
   componentWillMount = () => {
     this.formRef = React.createRef();
-    Papa.parse(
-      this.getUrl(), {
-        download: true,
-        worker: true,
-        header: true,
-        skipEmptyLines: true,
-        complete: this.initialize,
-      }
-    );
   };
 
-  getUrl = () => {
-    let url = "https://raw.githubusercontent.com/scc-usc/covid19-forecast-bench/master/evaluation/state_death_eval/mae_avg_states.csv";
-    if (this.state.timeSpan == "avg") {
-      url = `https://raw.githubusercontent.com/scc-usc/covid19-forecast-bench/master/evaluation/${this.state.forecastType}/mae_avg_${this.state.region}.csv`;
-    } else {
-      url = `https://raw.githubusercontent.com/scc-usc/covid19-forecast-bench/master/evaluation/${this.state.forecastType}/mae_${this.state.timeSpan}_weeks_ahead_${this.state.region}.csv`;
-    }
-    return url;
+  parseJsonUrl = () => {
+    var url = "https://raw.githubusercontent.com/alexyin1/covid19-forecast-bench/master/json-forecasts/state-death.json";
+    var dataDict = {};
+    fetch(url).then(response => response.json()).then((jsonResult) => {
+        Object.keys(jsonResult).forEach(function(key) {
+          dataDict[key] = jsonResult[key];
+          //console.log(dataDict[key]);
+        });
+      }).catch((error) => {
+      console.error(error)
+    });
+    this.setState((state) => {
+      return {jsonData: dataDict};
+    })
+    //console.log(this.state.jsonData);
+    //console.log("finished");
+    return dataDict;
   }
 
-  initialize = result => {
-    result.data.map((csvRow, index) => {
-      for (const col in csvRow) {
-        if (col === "" && csvRow[col] !== " ") {
-          this.setState(state => {
-            const methodList = state.methodList.concat(csvRow[col]);
-            return {
-              methodList,
-            };
-          });
+  initialize = (jsonData) => {
+    //console.log(jsonData);
+    var methodList = this.state.methodList;
+
+    Object.keys(jsonData).forEach(function(method) {
+      methodList = methodList.concat(method);
+    });
+    //console.log(method, jsonData[method]);
+    this.setState((state) => {
+      return {methodList: methodList};
+    });
+
+    //console.log(this.state.methodList);
+    this.updateData(jsonData);
+    this.setState({
+      selectedDateRange: this.state.maxDateRange
+    }, ()=> {
+      this.formRef.current.setFieldsValue({
+        dateRange: [0, this.getTotalNumberOfWeeks()]
+      });
+    });
+    this.addMethod("ensemble_SIkJa_RF");
+    this.addMethod("reich_COVIDhub_ensemble");
+  };
+
+  updateData = jsonData => {
+    let maxDateRange = [undefined, undefined];
+    let anchorDatapoints = { maeData: [] };
+    let oldMaxRange = this.state.maxDateRange;
+
+    Object.keys(jsonData).forEach(function(method) {
+      //console.log(this.state.jsonData.method);
+      for (var date in jsonData[method]) {
+        //console.log(date);
+        if (!maxDateRange[0]) { maxDateRange[0] = date; }
+        if (!maxDateRange[1]) { maxDateRange[1] = date; }
+        if (date < maxDateRange[0]) {
+          maxDateRange[0] = date;
+        }
+        if (date > maxDateRange[1]) {
+          maxDateRange[1] = date;
         }
       }
     });
 
-    this.updateData(result, () => {
-      // Initialize data range.
-      this.setState({
-        selectedDateRange: this.state.maxDateRange
-      }, ()=> {
-        this.generateRanking();
-        this.formRef.current.setFieldsValue({
-          dateRange: [0, this.getTotalNumberOfWeeks()]
+    if (oldMaxRange[0] != maxDateRange[0] || oldMaxRange[1] != maxDateRange[1]) {
+      var anch_data = [];
+
+      anch_data.push({x: "0", y: 0});
+      anch_data.push({x: "500", y: 0});
+      anch_data.push({x: "500", y: 200});
+      
+      anchorDatapoints.dataSeries = anch_data;
+
+      this.setState((state) => {
+          return {mainGraphData: { anchorDatapoints },
+                  maxDateRange: maxDateRange};
         });
-      });
-      this.addMethod("ensemble_SIkJa_RF");
-      this.addMethod("reich_COVIDhub_ensemble");
-    });
+    }
+    this.reloadAll();
+    this.generateRanking();
+    console.log(this.state.mainGraphData);
   };
 
-  updateData = (result, func) => {
-    let maxDateRange = [undefined, undefined];
-    let anchorDatapoints = { maeData: [] };
+  graphData = method => {
+    var reg_num = US_STATES.findIndex(obj => obj === this.state.region);
+    var localFilter;
+    var graph_data = [];
+    localFilter = this.isMLMethod(method) ? "ml":"human";
 
-    // Update the date range by reading the column names.
-    for (const date in result.data[0]) {
-      if (!maxDateRange[0]) { maxDateRange[0] = date; }
-      if (!maxDateRange[1]) { maxDateRange[1] = date; }
-      if (date < maxDateRange[0]) {
-        maxDateRange[0] = date;
-      }
-      if (date > maxDateRange[1]) {
-        maxDateRange[1] = date;
+    var methodData = this.state.jsonData[method];
+   
+    //console.log(reg_num);
+    if (localFilter == this.state.filter || this.state.filter == "all") {
+      for (var date in methodData) {
+        //console.log(methodData[date]);
+        // TODO: multiple regions
+        if (date >= this.state.selectedDateRange[0] && this.state.selectedDateRange[1]) {
+          var y_new;
+          if (reg_num == -1) {
+            let sum = 0;
+            for (var y in methodData[date]) {
+              if (methodData[date][y] != "null") {
+                sum += parseInt(methodData[date][y]);
+              }
+              //console.log(methodData[date][y]);
+            }
+            y_new = sum;
+          }
+          else {
+            y_new = parseInt(methodData[date][reg_num]);
+            //console.log(y_new);
+          }
+
+          if (y_new != "null") {
+            graph_data.push({x: date, y: y_new,});
+          }
+        }
       }
     }
 
-    const csvData = result.data
-      .map((csvRow, index) => {
-        const method = { id: "", data: [] };
-        for (const col in csvRow) {
-          if (col === "") {
-            method.id = csvRow[col];
-          } else {
-            const val = parseInt(csvRow[col]);
-            method.data.push({
-              x: col,
-              y: val,
-            });
-          }
-        }
-        // If method id is an empty space, the data are empty anchor datapoints.
-        if (method.id == " ") {
-          anchorDatapoints.dataSeries = method.data;
-        }
-        return method;
-      })
-      .filter(method => method.id !== " " && method.data.length !== 0); // Filter out anchor datapoints and methods which do not have any forecasts.
-
-    this.setState(
-      {
-        csvData: csvData,
-        mainGraphData: { anchorDatapoints },
-        maxDateRange: maxDateRange,
-      },
-      () => {
-        this.reloadAll();
-        if (typeof func === "function" && func()) {
-          func();
-        }
-      }
-    );
+    return graph_data;
   };
-
+//--------------------------------------------------------------------- stopped implementing up to here ------------------------------------------------------
   generateRanking = () => {
-    const selectedDateRange = this.state.selectedDateRange;
-    // First filter out the covid hub baseline MAE average.
-    let baselineAverageMAE = this.state.csvData.filter(method => method.id === "reich_COVIDhub_baseline")[0];
-    let cutOff = 0;
-    let filter = this.state.filter;
-    console.log(filter);
-    const rankingTableData = this.state.csvData.map(method => {
-      const methodName = method.id;
-      const methodType = this.isMLMethod(methodName) ? "ML/AI" : "Human-Expert";
-      const localFilter = this.isMLMethod(methodName) ? "ml":"human";
-      let filterMatch = false;
-      let forecastCount = 0;
-      let MAE_Sum = 0;
-      let relativeMAE_Sum = 0;  // Sum of method_MAE/baseline_MAE
-      
-      method.data.forEach((dp, idx) =>
-      {
-        if (!isNaN(dp.y) && dp.x >= selectedDateRange[0] && dp.x <= selectedDateRange[1] && baselineAverageMAE.data[idx].y) {
-          MAE_Sum += dp.y;
-          relativeMAE_Sum += dp.y / baselineAverageMAE.data[idx].y;
-          forecastCount++;
-        }
-        if( forecastCount > cutOff){
-          cutOff = forecastCount;
-        }
-      });
-      if (forecastCount === 0) {
-        return null;
-      }
-      const averageMAE = (MAE_Sum / forecastCount).toFixed(2);
-      let relativeMAE = (relativeMAE_Sum / forecastCount);
-      // Baseline model is the benchmark of relative MAE.
-      if (method.id === "reich_COVIDhub_baseline") {
-        relativeMAE = 1;
-      }
+    // const selectedDateRange = this.state.selectedDateRange;
+    // // First filter out the covid hub baseline MAE average.
+    // let baselineAverageMAE = this.state.jsonData["reich_COVIDhub_baseline"];
+    // let cutOff = 0;
+    // let filter = this.state.filter;
 
-      if (((filter == 'all')|| (localFilter == filter)) &&  (cutOff == forecastCount)){
-        filterMatch = true;
-        console.log(filterMatch);
-      }
-      relativeMAE = relativeMAE.toFixed(3);
-      return { methodName, methodType, averageMAE, relativeMAE, forecastCount, filterMatch };
-    }).filter(entry => (entry && entry.forecastCount && (entry.filterMatch == true)));  // Filter out methods without any forecasts.
-    this.setState({
-      rankingTableData: rankingTableData,
-    });
+    // const rankingTableData = this.state.jsonData.map(method=> {
+    //     const methodName = method
+    // })
+    
+    
+    
+    // this.state.csvData.map(method => {
+    //   const methodName = method.id;
+    //   const methodType = this.isMLMethod(methodName) ? "ML/AI" : "Human-Expert";
+    //   const localFilter = this.isMLMethod(methodName) ? "ml":"human";
+    //   let filterMatch = false;
+    //   let forecastCount = 0;
+    //   let MAE_Sum = 0;
+    //   let relativeMAE_Sum = 0;  // Sum of method_MAE/baseline_MAE
+      
+    //   method.data.forEach((dp, idx) =>
+    //   {
+    //     if (dp.y != null && dp.x >= selectedDateRange[0] && dp.x <= selectedDateRange[1] && baselineAverageMAE.data[idx].y) {
+    //       MAE_Sum += dp.y;
+    //       relativeMAE_Sum += dp.y / baselineAverageMAE.data[idx].y;
+    //       forecastCount++;
+    //     }
+    //     if( forecastCount > cutOff){
+    //       cutOff = forecastCount;
+    //     }
+    //   });
+    //   if (forecastCount === 0) {
+    //     return null;
+    //   }
+    //   const averageMAE = (MAE_Sum / forecastCount).toFixed(2);
+    //   let relativeMAE = (relativeMAE_Sum / forecastCount);
+    //   // Baseline model is the benchmark of relative MAE.
+    //   if (method.id === "reich_COVIDhub_baseline") {
+    //     relativeMAE = 1;
+    //   }
+
+    //   if (((filter == 'all')|| (localFilter == filter)) &&  (cutOff == forecastCount)){
+    //     filterMatch = true;
+    //     console.log(filterMatch);
+    //   }
+    //   relativeMAE = relativeMAE.toFixed(3);
+    //   return { methodName, methodType, averageMAE, relativeMAE, forecastCount, filterMatch };
+    // }).filter(entry => (entry && entry.forecastCount && (entry.filterMatch == true)));  // Filter out methods without any forecasts.
+    // this.setState({
+    //   rankingTableData: rankingTableData,
+    // });
   };
+  
 
   methodIsSelected = method => {
     if (this.state.allMethods && method) {
@@ -300,20 +330,13 @@ class Evaluation extends Component {
     if (this.methodIsSelected(method)) {
       return;
     }
-    const methodDataSeries = this.state.csvData.filter(
-      data => data.id === method
-    )[0].data;
-    const methodGraphData = { dataSeries: methodDataSeries };
+
+     const methodDataSeries = this.graphData(method);
+     const methodGraphData = { dataSeries: methodDataSeries };
 
     this.setState(
       prevState => {
         return {
-          humanMethods: this.isMLMethod(method)
-            ? prevState.humanMethods
-            : [...prevState.humanMethods, method],
-          mlMethods: !this.isMLMethod(method)
-            ? prevState.mlMethods
-            : [...prevState.mlMethods, method],
           allMethods: [...prevState.allMethods, method],
           mainGraphData: {
             ...prevState.mainGraphData,
@@ -327,6 +350,8 @@ class Evaluation extends Component {
         });
       }
     );
+
+    console.log(this.state.mainGraphData);
   };
 
   removeMethod = targetMethod => {
@@ -359,6 +384,7 @@ class Evaluation extends Component {
           }, {}),
       };
     });
+    console.log(this.state.mainGraphData);
   };
 
   onValuesChange = (changedValues, allValues) => {
@@ -394,18 +420,9 @@ class Evaluation extends Component {
   handleForecastTypeSelect = type => {
     this.setState({
       forecastType: type
-    }, () => {
-      Papa.parse(
-        this.getUrl(), {
-          download: true,
-          worker: true,
-          header: true,
-          skipEmptyLines: true,
-          complete: result => {this.updateData(result, this.generateRanking)},
-        }
-      );
     });
-  }
+    this.updateData(this.state.jsonData);
+  };
 
 
   handleErrorTypeSelect = e => {
@@ -417,56 +434,29 @@ class Evaluation extends Component {
   handleTimeSpanSelect = e => {
     this.setState({
       timeSpan: e.target.value,
-    }, () => {
-      Papa.parse(
-        this.getUrl(), {
-          download: true,
-          worker: true,
-          header: true,
-          skipEmptyLines: true,
-          complete: result => {this.updateData(result, this.generateRanking)},
-        }
-      );
     });
+    this.updateData(this.state.jsonData);
   };
 
   handleRegionChange = newRegion => {
-    this.setState(
-      {
-        region: newRegion,
-      },
-      () => {
-        Papa.parse(
-          this.getUrl(), {
-            download: true,
-            header: true,
-            worker: true,
-            skipEmptyLines: true,
-            complete: result => {this.updateData(result, this.generateRanking)},
-          }
-        );
+  this.setState(
+    {
+      region: newRegion,
+    });
 
-        this.formRef.current.setFieldsValue({
-          region: this.state.region,
-        });
-      }
-    );
+    this.updateData(this.state.jsonData);
+
+    this.formRef.current.setFieldsValue({
+      region: this.state.region,
+    });
   };
 
   handleFilterChange = e => {
     this.setState({
       filter: e.target.value,
-    }, () => {
-      Papa.parse(
-        this.getUrl(), {
-          download: true,
-          worker: true,
-          header: true,
-          skipEmptyLines: true,
-          complete: result => {this.updateData(result, this.generateRanking)},
-        }
-      );
     });
+
+    this.updateData(this.state.jsonData);
   };
 
   getTotalNumberOfWeeks = () => {

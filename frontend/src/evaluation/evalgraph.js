@@ -84,15 +84,17 @@ const addChart = (methods, lines, scatters, legends, data, dateRange, colorSchem
         { fill: "#aaa", fontSize: 5, fontFamily: "sans-serif" },
         { fill: "#aaa", fontSize: 5, fontFamily: "sans-serif" },
       ];
-
+      
       // Filter out NaN values, and datapoints out of selected date range.
       const lineData = data[method]["dataSeries"]
-        .filter(datapoint => (
-          !isNaN(datapoint.y)
-          && datapoint.x >= dateRange[0]
-          && datapoint.x <= dateRange[1]));
-      legends.push({ name: method, symbol: { fill: color } });
+      .filter(datapoint => (
+        //datapoint.y != "null"
+        !isNaN(datapoint.y)
+        && datapoint.x >= dateRange[0]
+        && datapoint.x <= dateRange[1]));
+        legends.push({ name: method, symbol: { fill: color } });
 
+        console.log(lineData);
       lines.push(
         <VictoryLine
           key={idx}
@@ -136,6 +138,8 @@ const evalgraph = props => {
   let scatters = [];
   let legends = [];
 
+  //console.log(dateRange);
+
   // Add an invisible anchor line to the chart to prevent the chart from being cut off.
   if (data["anchorDatapoints"]) {
     lines.push(
@@ -146,6 +150,7 @@ const evalgraph = props => {
         data={data.anchorDatapoints["dataSeries"]}
       />
     );
+    //console.log(data["anchorDatapoints"]);
   }
 
   // Cascade human methods on top of ml methods.

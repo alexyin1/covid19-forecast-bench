@@ -101,8 +101,7 @@ class Evaluation extends Component {
       forecastType: "state_death_eval",
       timeSpan: "avg",
       maxDateRange: [],
-      selectedDateRange: [],
-      jsonData: {}
+      selectedDateRange: []
     };
   }
 
@@ -125,9 +124,15 @@ class Evaluation extends Component {
 
   componentWillMount = () => {
     this.formRef = React.createRef();
-    
-    //papa.parse and initialize
-    this.initialize();
+    Papa.parse(
+      this.getUrl(), {
+        download: true,
+        worker: true,
+        header: true,
+        skipEmptyLines: true,
+        complete: this.initialize,
+      }
+    );
   };
 
   getUrl = () => {
@@ -140,33 +145,18 @@ class Evaluation extends Component {
     return url;
   }
 
-  parseJsonUrl = () => {
-    var url = "https://raw.githubusercontent.com/alexyin1/covid19-forecast-bench/master/json-forecasts/state-death.json";
-    fetch(url).then(response => response.json()).then((jsonResult) => {
-              var dataDict = {};
-
-              Object.keys(jsonResult).forEach(function(key) {
-                dataDict[key] = jsonResult[key];
-              });
-              this.setState ({jsonData: dataDict});
-              console.log(this.state.jsonData);
-            }).catch((error) => {
-            console.error(error)
-          });
-  }
-
   initialize = result => {
-
-
-    result.data.map((csvRow,index) => {
-        Object.keys(jsonData).forEach(function(key) {
-            this.setState(state => {
-                const methodList = state.methodList.concat(key);
-                return{
-                    methodList,
-                };
-            });
-        });
+    result.data.map((csvRow, index) => {
+      for (const col in csvRow) {
+        if (col === "" && csvRow[col] !== " ") {
+          this.setState(state => {
+            const methodList = state.methodList.concat(csvRow[col]);
+            return {
+              methodList,
+            };
+          });
+        }
+      }
     });
 
     this.updateData(result, () => {
@@ -184,31 +174,49 @@ class Evaluation extends Component {
     });
   };
 
-  // new version with JSON
   updateData = (result, func) => {
     let maxDateRange = [undefined, undefined];
     let anchorDatapoints = { maeData: [] };
 
-    Object.keys(this.state.jsonData).forEach(function(method) {
-      if (this.state.allMethods.indexOf(method) != -1) {
-        for (var date in this.state.jsonData[method]) {
-          if (!maxDateRange[0]) { maxDateRange[0] = date; }
-          if (!maxDateRange[1]) { maxDateRange[1] = date; }
-          if (date < maxDateRange[0]) {
-            maxDateRange[0] = date;
-          }
-          if (date > maxDateRange[1]) {
-            maxDateRange[1] = date;
+    // Update the date range by reading the column names.
+    for (const date in result.data[0]) {
+      if (!maxDateRange[0]) { maxDateRange[0] = date; }
+      if (!maxDateRange[1]) { maxDateRange[1] = date; }
+      if (date < maxDateRange[0]) {
+        maxDateRange[0] = date;
+      }
+      if (date > maxDateRange[1]) {
+        maxDateRange[1] = date;
+      }
+    }
+
+    const csvData = result.data
+      .map((csvRow, index) => {
+        const method = { id: "", data: [] };
+        for (const col in csvRow) {
+          if (col === "") {
+            method.id = csvRow[col];
+            //console.log(method.id);
+          } else {
+            const val = parseInt(csvRow[col]);
+            method.data.push({
+              x: col,
+              y: val,
+            });
           }
         }
-      }
-    });
-
-    anchorDatapoints.dataSeries = this.graphData("all");
-
+        // If method id is an empty space, the data are empty anchor datapoints.
+        if (method.id == " ") {
+          anchorDatapoints.dataSeries = method.data;
+          //console.log(anchorDatapoints.dataSeries);
+        }
+        return method;
+      })
+      .filter(method => method.id !== " " && method.data.length !== 0); // Filter out anchor datapoints and methods which do not have any forecasts.
 
     this.setState(
       {
+        csvData: csvData,
         mainGraphData: { anchorDatapoints },
         maxDateRange: maxDateRange,
       },
@@ -219,49 +227,18 @@ class Evaluation extends Component {
         }
       }
     );
+
+    console.log(this.state.mainGraphData);
   };
 
-  graphData = method_name => {
-    var reg_num = US_STATES.findIndex(obj => obj === this.state.region);
-    var graph_data = [];
-
-    if (method_name == "all") {
-      Object.keys(this.state.jsonData).forEach(function(method) {
-        if (this.state.allMethods.indexOf(method) != -1) {
-          for (var xp in this.state.jsonData[method]) {
-            var x_new = parseInt(xp);
-            var y_new = this.state.jsonData[method][xp][reg_num];
-            graph_data.push({x: x_new, y: y_new,});
-          }
-        }
-      });
-    }
-    else {
-      if (this.state.allMethods.indexOf(method_name) != -1) {
-        for (var xp in this.state.jsonData[method_name]) {
-          var x_new = parseInt(xp);
-          var y_new = this.state.jsonData[method_name][xp][reg_num];
-          graph_data.push({x: x_new, y: y_new,});
-        }
-      }
-    }
-    return graph_data;
-  }
-//--------------------------------------------------------------------- stopped implementing up to here ------------------------------------------------------
   generateRanking = () => {
     const selectedDateRange = this.state.selectedDateRange;
     // First filter out the covid hub baseline MAE average.
-    let baselineAverageMAE = this.state.jsonData["reich_COVIDhub_baseline"];
+    let baselineAverageMAE = this.state.csvData.filter(method => method.id === "reich_COVIDhub_baseline")[0];
     let cutOff = 0;
     let filter = this.state.filter;
-
-    const rankingTableData = this.state.jsonData.map(method=> {
-        const methodName = method
-    })
-    
-    
-    
-    this.state.csvData.map(method => {
+    console.log(filter);
+    const rankingTableData = this.state.csvData.map(method => {
       const methodName = method.id;
       const methodType = this.isMLMethod(methodName) ? "ML/AI" : "Human-Expert";
       const localFilter = this.isMLMethod(methodName) ? "ml":"human";
@@ -272,7 +249,7 @@ class Evaluation extends Component {
       
       method.data.forEach((dp, idx) =>
       {
-        if (dp.y != null && dp.x >= selectedDateRange[0] && dp.x <= selectedDateRange[1] && baselineAverageMAE.data[idx].y) {
+        if (!isNaN(dp.y) && dp.x >= selectedDateRange[0] && dp.x <= selectedDateRange[1] && baselineAverageMAE.data[idx].y) {
           MAE_Sum += dp.y;
           relativeMAE_Sum += dp.y / baselineAverageMAE.data[idx].y;
           forecastCount++;
@@ -327,7 +304,9 @@ class Evaluation extends Component {
     if (this.methodIsSelected(method)) {
       return;
     }
-    const methodDataSeries = this.graphData(method);
+    const methodDataSeries = this.state.csvData.filter(
+      data => data.id === method
+    )[0].data;
     const methodGraphData = { dataSeries: methodDataSeries };
 
     this.setState(
@@ -492,7 +471,6 @@ class Evaluation extends Component {
         }
       );
     });
-    this.parseJsonUrl();
   };
 
   getTotalNumberOfWeeks = () => {
