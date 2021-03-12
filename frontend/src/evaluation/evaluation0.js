@@ -108,18 +108,6 @@ class Evaluation extends Component {
   componentDidMount() {
     ReactGA.initialize("UA-186385643-2");
     ReactGA.pageview("/covid19-forecast-bench/evaluation");
-
-    try{
-      if(this.props.match.params !== undefined && this.props.location.state!== undefined){
-          const {handle} = this.props.match.params;
-          const {disease} = this.props.location.state;
-          console.log("test")
-          console.log(disease);
-        }
-      }
-      finally{
-        console.log("Load Complete");
-      }
   }
 
   componentWillMount = () => {
@@ -170,7 +158,7 @@ class Evaluation extends Component {
         });
       });
       this.addMethod("ensemble_SIkJa_RF");
-      this.addMethod("reich_COVIDhub_ensemble");
+      this.addMethod("FH_COVIDhub_ensemble");
     });
   };
 
@@ -180,12 +168,12 @@ class Evaluation extends Component {
 
     // Update the date range by reading the column names.
     for (const date in result.data[0]) {
-      if (!maxDateRange[0]) { maxDateRange[0] = date; }
-      if (!maxDateRange[1]) { maxDateRange[1] = date; }
-      if (date < maxDateRange[0]) {
+      if (result.data[0][date] && !maxDateRange[0]) { maxDateRange[0] = date; }
+      if (result.data[0][date] && !maxDateRange[1]) { maxDateRange[1] = date; }
+      if (result.data[0][date] && date < maxDateRange[0]) {
         maxDateRange[0] = date;
       }
-      if (date > maxDateRange[1]) {
+      if (result.data[0][date] && date > maxDateRange[1]) {
         maxDateRange[1] = date;
       }
     }
@@ -196,7 +184,6 @@ class Evaluation extends Component {
         for (const col in csvRow) {
           if (col === "") {
             method.id = csvRow[col];
-            //console.log(method.id);
           } else {
             const val = parseInt(csvRow[col]);
             method.data.push({
@@ -208,7 +195,6 @@ class Evaluation extends Component {
         // If method id is an empty space, the data are empty anchor datapoints.
         if (method.id == " ") {
           anchorDatapoints.dataSeries = method.data;
-          //console.log(anchorDatapoints.dataSeries);
         }
         return method;
       })
@@ -227,26 +213,23 @@ class Evaluation extends Component {
         }
       }
     );
-
-    console.log(this.state.mainGraphData);
   };
 
   generateRanking = () => {
     const selectedDateRange = this.state.selectedDateRange;
+    const maxDateRange = this.state.maxDateRange;
     // First filter out the covid hub baseline MAE average.
-    let baselineAverageMAE = this.state.csvData.filter(method => method.id === "reich_COVIDhub_baseline")[0];
-    let cutOff = 0;
-    let filter = this.state.filter;
-    console.log(filter);
+    let baselineAverageMAE = this.state.csvData.filter(method => method.id === "FH_COVIDhub_baseline")[0];
+
     const rankingTableData = this.state.csvData.map(method => {
       const methodName = method.id;
       const methodType = this.isMLMethod(methodName) ? "ML/AI" : "Human-Expert";
-      const localFilter = this.isMLMethod(methodName) ? "ml":"human";
-      let filterMatch = false;
       let forecastCount = 0;
       let MAE_Sum = 0;
       let relativeMAE_Sum = 0;  // Sum of method_MAE/baseline_MAE
-      
+      let fromSelectedStartDate = false;
+      let upToSelectedEndDate = false;
+      let updating = false;
       method.data.forEach((dp, idx) =>
       {
         if (!isNaN(dp.y) && dp.x >= selectedDateRange[0] && dp.x <= selectedDateRange[1] && baselineAverageMAE.data[idx].y) {
@@ -254,30 +237,35 @@ class Evaluation extends Component {
           relativeMAE_Sum += dp.y / baselineAverageMAE.data[idx].y;
           forecastCount++;
         }
-        if( forecastCount > cutOff){
-          cutOff = forecastCount;
+        if (!isNaN(dp.y) && dp.x == selectedDateRange[0]) {
+          fromSelectedStartDate = true;
+        }
+        if (!isNaN(dp.y) && dp.x == selectedDateRange[1]) {
+          upToSelectedEndDate = true;
+        }
+        if (!isNaN(dp.y) && dp.x == maxDateRange[1]) {
+          updating = true;
         }
       });
       if (forecastCount === 0) {
         return null;
       }
+      const fitWithinDateRange = fromSelectedStartDate && upToSelectedEndDate;
       const averageMAE = (MAE_Sum / forecastCount).toFixed(2);
       let relativeMAE = (relativeMAE_Sum / forecastCount);
       // Baseline model is the benchmark of relative MAE.
-      if (method.id === "reich_COVIDhub_baseline") {
+      if (method.id === "FH_COVIDhub_baseline") {
         relativeMAE = 1;
       }
-
-      if (((filter == 'all')|| (localFilter == filter)) &&  (cutOff == forecastCount)){
-        filterMatch = true;
-        console.log(filterMatch);
-      }
       relativeMAE = relativeMAE.toFixed(3);
-      return { methodName, methodType, averageMAE, relativeMAE, forecastCount, filterMatch };
-    }).filter(entry => (entry && entry.forecastCount && (entry.filterMatch == true)));  // Filter out methods without any forecasts.
+      return { methodName, methodType, averageMAE, relativeMAE, forecastCount, fitWithinDateRange, updating };
+    }).filter(entry => entry && entry.forecastCount);  // Filter out methods without any forecasts.
+
     this.setState({
       rankingTableData: rankingTableData,
     });
+
+    console.log(rankingTableData);
   };
 
   methodIsSelected = method => {
@@ -460,16 +448,6 @@ class Evaluation extends Component {
   handleFilterChange = e => {
     this.setState({
       filter: e.target.value,
-    }, () => {
-      Papa.parse(
-        this.getUrl(), {
-          download: true,
-          worker: true,
-          header: true,
-          skipEmptyLines: true,
-          complete: result => {this.updateData(result, this.generateRanking)},
-        }
-      );
     });
   };
 

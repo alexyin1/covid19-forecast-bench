@@ -1,2 +1,13 @@
-.DS_Store
+*.DS_[Ss]tore
+.DS_Store?
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
 frontend/.eslintcache
+frontend/node_mocdules/
