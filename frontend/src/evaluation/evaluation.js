@@ -115,11 +115,11 @@ class Evaluation extends Component {
           const {handle} = this.props.match.params;
           const {disease} = this.props.location.state;
           //console.log("test")
-          console.log(disease);
+          //console.log(disease);
         }
       }
       finally{
-        console.log("Load Complete");
+        //console.log("Load Complete");
       }
   }
 
@@ -177,16 +177,22 @@ class Evaluation extends Component {
     let oldMaxRange = this.state.maxDateRange;
 
     Object.keys(jsonData).forEach(function(method) {
-      //console.log(this.state.jsonData.method);
       for (var date in jsonData[method]) {
-        //console.log(date);
-        if (!maxDateRange[0]) { maxDateRange[0] = date; }
-        if (!maxDateRange[1]) { maxDateRange[1] = date; }
-        if (date < maxDateRange[0]) {
-          maxDateRange[0] = date;
-        }
-        if (date > maxDateRange[1]) {
-          maxDateRange[1] = date;
+        var curr_date = new Date(date);
+        if (jsonData[method][date]) {
+          if (!maxDateRange[0]) { maxDateRange[0] = date; }
+          if (!maxDateRange[1]) { maxDateRange[1] = date; }
+
+          var min_date = new Date(maxDateRange[0]);
+          var max_date = new Date(maxDateRange[1]);
+          if (curr_date < min_date) {
+            maxDateRange[0] = date;
+          }
+          if (curr_date > max_date) {
+            maxDateRange[1] = date;
+          }
+          //console.log(date);
+          //console.log(maxDateRange);
         }
       }
     });
@@ -207,7 +213,8 @@ class Evaluation extends Component {
     }
     this.reloadAll();
     this.generateRanking();
-    console.log(this.state.mainGraphData);
+    //setTimeout(() => {this.generateRanking();}, 1000);
+    //console.log(this.state.mainGraphData);
   };
   // goes through each method and grabs the data relative the parameters set
   graphData = method => {
@@ -217,139 +224,150 @@ class Evaluation extends Component {
     localFilter = this.isMLMethod(method) ? "ml":"human";
 
     let baselineAverageMAE = this.state.jsonData["reich_COVIDhub_baseline"];
-    let cutOff = 0;
-    let filter = this.state.filter;
-    let methodList = this.state.methodList;
-
     var methodData = this.state.jsonData[method];
-
-
-    let filterMatch = false;
-    let forecastCount = 0;
     let MAE_Sum = 0;
     let relativeMAE_Sum = 0;
+
+    //console.log(baselineAverageMAE);
    
     //console.log(reg_num);
     if (localFilter == this.state.filter || this.state.filter == "all") {
       for (var date in methodData) {
-
-
-        //console.log(methodData[date]);
         // TODO: multiple regions
-        if (date >= this.state.selectedDateRange[0] && this.state.selectedDateRange[1]) {
-          var y_new;
+        var curr_date = new Date(date);
+        var min_date = new Date(this.state.selectedDateRange[0]);
+        var max_date = new Date(this.state.selectedDateRange[1]);
+        if (curr_date >= min_date && curr_date <= max_date) {
+          var region_cases;
+          var MAE_cases;
           if (reg_num == -1) {
             let sum = 0;
+            let baseline_sum = 0;
             for (var reg in methodData[date]) {
               if (methodData[date][reg] != "null") {
                 sum += parseInt(methodData[date][reg]);
+                baseline_sum += parseInt(baselineAverageMAE[date][reg]);
               }
-              //console.log(methodData[date][y]);
             }
-            y_new = sum;
+
+            region_cases = sum;
+            MAE_cases = baseline_sum;
           }
           else {
-            y_new = parseInt(methodData[date][reg_num]);
-            //console.log(y_new);
+            region_cases = parseInt(methodData[date][reg_num]);
+            MAE_cases = parseInt(baselineAverageMAE[date][reg_num])
           }
 
-          if (y_new != "null" &&  baselineAverageMAE[date][reg_num] != 'null') {
-            MAE_Sum += y_new;
-            relativeMAE_Sum += y_new/ baselineAverageMAE[date][reg_num];
-            forecastCount++;
-            if( forecastCount > cutOff){
-                  cutOff = forecastCount;
-            }
+          if (region_cases != "null" &&  MAE_cases != 'null') {
+            MAE_Sum += region_cases;
+            relativeMAE_Sum += region_cases/ MAE_cases;
             graph_data.push({x: date, y: relativeMAE_Sum,});
           }
-
         }
       }
-
-      const averageMAE = (MAE_Sum / forecastCount).toFixed(2);
-      let relativeMAE = (relativeMAE_Sum / forecastCount);
-      // Baseline model is the bencčmark of relative MAE.
-      if (method.id === "reich_COVIDhub_baseline") {
-        relativeMAE = 1;
-      }
-
-      if (((filter == 'all')|| (localFilter == filter)) &&  (cutOff == forecastCount)){
-        filterMatch = true;
-        console.log(filterMatch);
-      }
-
-      relativeMAE = relativeMAE.toFixed(3);
     }
-
-
-    this.setState({
-      rankingTableData: rankingTableData,
-    });
-
     return graph_data;
   };
-//--------------------------------------------------------------------- stopped implementing up to here ------------------------------------------------------
-  generateRanking = () => {
 
-    for method in methodList
-    {
-      const methodType = this.isMLMethod(method) ? "ML/AI" : "Human-Expert";
-      const localFilter = this.isMLMethod(method) ? "ml":"human";
-      let filterMatch = false;
+  generateRanking = () => {
+    var reg_num = US_STATES.findIndex(obj => obj === this.state.region);
+
+    let baselineAverageMAE = this.state.jsonData["reich_COVIDhub_baseline"];
+    let methodList = this.state.methodList;
+    var relativeMAE;
+
+    var rankingTableData = [];
+    var idx = 0;
+    //console.log(methodList);
+   
+    for (var method in methodList) {
+      var methodName = methodList[method];
+      var methodData = this.state.jsonData[methodName];
+      var localFilter = this.isMLMethod(methodName) ? "ml":"human";
+      var methodType = this.isMLMethod(methodName) ? "ML/AI" : "Human-Expert";
+
       let forecastCount = 0;
+      let cutOff = 0;
       let MAE_Sum = 0;
       let relativeMAE_Sum = 0;
-      data = this.state.jsonData[method];
+      let fromSelectedStartDate = false;
+      let upToSelectedEndDate = false;
+      let updating = false;
 
-      for date in data{
+      if (localFilter == this.state.filter || this.state.filter == "all") {
+        for (var date in methodData) {
+          //console.log(date);
+          //console.log(baselineAverageMAE[date]);
+          
+          var curr_date = new Date(date);
+          var min_date = new Date(this.state.selectedDateRange[0]);
+          var max_date = new Date(this.state.selectedDateRange[1]);
+          if (curr_date >= min_date && curr_date <= max_date && baselineAverageMAE[date]) {
+            var region_cases;
+            var MAE_cases;
+            if (reg_num == -1) {
+              let sum = 0;
+              let baseline_sum = 0;
+              for (var reg in methodData[date]) {
+                if (methodData[date][reg] != "null" && baselineAverageMAE[date][reg] != "null") {
+                  sum += parseInt(methodData[date][reg]);
+                  baseline_sum += parseInt(baselineAverageMAE[date][reg]);
+                }
+              }
+              region_cases = (sum === 0) ? "null" : sum;
+              MAE_cases = (baseline_sum === 0) ? "null" : baseline_sum;
+            }
+            else {
+              region_cases = parseInt(methodData[date][reg_num]);
+              MAE_cases = parseInt(baselineAverageMAE[date][reg_num])
+            }
 
+            //console.log("region_cases and MAE_cases");
+            //console.log(region_cases);
+            //console.log(MAE_cases);
+  
+            if (region_cases != "null" &&  MAE_cases != "null") {
+              MAE_Sum += region_cases;
+              relativeMAE_Sum += region_cases/ MAE_cases;
+              forecastCount++;
+              if( forecastCount > cutOff){
+                    cutOff = forecastCount;
+              }
+              if (curr_date == min_date) {
+                fromSelectedStartDate = true;
+              }
+              if (curr_date == max_date) {
+                upToSelectedEndDate = true;
+              }
+              if (curr_date == new Date(this.state.maxDateRange[1])) {
+                updating = true;
+              }
+            }
+          }
+        }
+
+        const fitWithinDateRange = fromSelectedStartDate && upToSelectedEndDate;
+        const averageMAE = (MAE_Sum / forecastCount).toFixed(2);
+        relativeMAE = (relativeMAE_Sum / forecastCount);
+        if (methodName === "reich_COVIDhub_baseline") {
+          relativeMAE = 1;
+        }
+        relativeMAE = relativeMAE.toFixed(3);
+
+        //console.log(forecastCount);
+        //console.log(cutOff);
+
+        if (forecastCount && (cutOff == forecastCount)) {
+          rankingTableData[idx] = {methodName, methodType, averageMAE, relativeMAE, forecastCount, fitWithinDateRange, updating};
+          console.log(rankingTableData[idx]);
+          idx++;
+        }
       }
-
     }
-    const rankingTableData 
-    
-    
-    
-    this.state.csvData.map(method => {
-      const methodName = method.id;
-      const methodType = this.isMLMethod(methodName) ? "ML/AI" : "Human-Expert";
-      const localFilter = this.isMLMethod(methodName) ? "ml":"human";
-      let filterMatch = false;
-      let forecastCount = 0;
-      let MAE_Sum = 0;
-      let relativeMAE_Sum = 0;  // Sum of method_MAE/baseline_MAE
-      
-      method.data.forEach((dp, idx) =>
-      {
-        if (dp.y != null && dp.x >= selectedDateRange[0] && dp.x <= selectedDateRange[1] && baselineAverageMAE.data[idx].y) {
-          MAE_Sum += dp.y;
-          relativeMAE_Sum += dp.y / baselineAverageMAE.data[idx].y;
-          forecastCount++;
-        }
-        if( forecastCount > cutOff){
-          cutOff = forecastCount;
-        }
-      });
-      if (forecastCount === 0) {
-        return null;
-      }
-      const averageMAE = (MAE_Sum / forecastCount).toFixed(2);
-      let relativeMAE = (relativeMAE_Sum / forecastCount);
-      // Baseline model is the bencčmark of relative MAE.
-      if (method.id === "reich_COVIDhub_baseline") {
-        relativeMAE = 1;
-      }
 
-      if (((filter == 'all')|| (localFilter == filter)) &&  (cutOff == forecastCount)){
-        filterMatch = true;
-        console.log(filterMatch);
-      }
-      relativeMAE = relativeMAE.toFixed(3);
-      return { methodName, methodType, averageMAE, relativeMAE, forecastCount, filterMatch };
-    }).filter(entry => (entry && entry.forecastCount && (entry.filterMatch == true)));  // Filter out methods without any forecasts.
-    this.setState({
-      rankingTableData: rankingTableData,
-    });
+    //console.log(rankingTableData);
+
+    this.setState({rankingTableData: rankingTableData});
   };
   
 
@@ -431,7 +449,7 @@ class Evaluation extends Component {
           }, {}),
       };
     });
-    console.log(this.state.mainGraphData);
+    //console.log(this.state.mainGraphData);
   };
 
   onValuesChange = (changedValues, allValues) => {
@@ -517,7 +535,7 @@ class Evaluation extends Component {
     if (this.state.maxDateRange[0]) {
       const date = new Date(this.state.maxDateRange[0]);
       date.setDate(date.getDate() + 7 * weekNum);
-      return date.toISOString().slice(0,10);
+      return ((date.getMonth() > 8) ? (date.getMonth() + 1) : ('0' + (date.getMonth() + 1))) + '-' + ((date.getDate() > 9) ? date.getDate() : ('0' + date.getDate())) + '-' + date.getFullYear();
     }
     return null;
   }
@@ -528,9 +546,8 @@ class Evaluation extends Component {
     // console.log([start, end]);
     this.setState({
       selectedDateRange: [start, end]
-    }, ()=>{
-      this.generateRanking();
     });
+    this.updateData(this.state.jsonData);
   }
 
   render() {
