@@ -209,27 +209,40 @@ class Evaluation extends Component {
     this.generateRanking();
     console.log(this.state.mainGraphData);
   };
-
+  // goes through each method and grabs the data relative the parameters set
   graphData = method => {
     var reg_num = US_STATES.findIndex(obj => obj === this.state.region);
     var localFilter;
     var graph_data = [];
     localFilter = this.isMLMethod(method) ? "ml":"human";
 
+    let baselineAverageMAE = this.state.jsonData["reich_COVIDhub_baseline"];
+    let cutOff = 0;
+    let filter = this.state.filter;
+    let methodList = this.state.methodList;
+
     var methodData = this.state.jsonData[method];
+
+
+    let filterMatch = false;
+    let forecastCount = 0;
+    let MAE_Sum = 0;
+    let relativeMAE_Sum = 0;
    
     //console.log(reg_num);
     if (localFilter == this.state.filter || this.state.filter == "all") {
       for (var date in methodData) {
+
+
         //console.log(methodData[date]);
         // TODO: multiple regions
         if (date >= this.state.selectedDateRange[0] && this.state.selectedDateRange[1]) {
           var y_new;
           if (reg_num == -1) {
             let sum = 0;
-            for (var y in methodData[date]) {
-              if (methodData[date][y] != "null") {
-                sum += parseInt(methodData[date][y]);
+            for (var reg in methodData[date]) {
+              if (methodData[date][reg] != "null") {
+                sum += parseInt(methodData[date][reg]);
               }
               //console.log(methodData[date][y]);
             }
@@ -240,69 +253,103 @@ class Evaluation extends Component {
             //console.log(y_new);
           }
 
-          if (y_new != "null") {
-            graph_data.push({x: date, y: y_new,});
+          if (y_new != "null" &&  baselineAverageMAE[date][reg_num] != 'null') {
+            MAE_Sum += y_new;
+            relativeMAE_Sum += y_new/ baselineAverageMAE[date][reg_num];
+            forecastCount++;
+            if( forecastCount > cutOff){
+                  cutOff = forecastCount;
+            }
+            graph_data.push({x: date, y: relativeMAE_Sum,});
           }
+
         }
       }
+
+      const averageMAE = (MAE_Sum / forecastCount).toFixed(2);
+      let relativeMAE = (relativeMAE_Sum / forecastCount);
+      // Baseline model is the bencčmark of relative MAE.
+      if (method.id === "reich_COVIDhub_baseline") {
+        relativeMAE = 1;
+      }
+
+      if (((filter == 'all')|| (localFilter == filter)) &&  (cutOff == forecastCount)){
+        filterMatch = true;
+        console.log(filterMatch);
+      }
+
+      relativeMAE = relativeMAE.toFixed(3);
     }
+
+
+    this.setState({
+      rankingTableData: rankingTableData,
+    });
 
     return graph_data;
   };
 //--------------------------------------------------------------------- stopped implementing up to here ------------------------------------------------------
   generateRanking = () => {
-    // const selectedDateRange = this.state.selectedDateRange;
-    // // First filter out the covid hub baseline MAE average.
-    // let baselineAverageMAE = this.state.jsonData["reich_COVIDhub_baseline"];
-    // let cutOff = 0;
-    // let filter = this.state.filter;
 
-    // const rankingTableData = this.state.jsonData.map(method=> {
-    //     const methodName = method
-    // })
+    for method in methodList
+    {
+      const methodType = this.isMLMethod(method) ? "ML/AI" : "Human-Expert";
+      const localFilter = this.isMLMethod(method) ? "ml":"human";
+      let filterMatch = false;
+      let forecastCount = 0;
+      let MAE_Sum = 0;
+      let relativeMAE_Sum = 0;
+      data = this.state.jsonData[method];
+
+      for date in data{
+
+      }
+
+    }
+    const rankingTableData 
     
     
     
-    // this.state.csvData.map(method => {
-    //   const methodName = method.id;
-    //   const methodType = this.isMLMethod(methodName) ? "ML/AI" : "Human-Expert";
-    //   const localFilter = this.isMLMethod(methodName) ? "ml":"human";
-    //   let filterMatch = false;
-    //   let forecastCount = 0;
-    //   let MAE_Sum = 0;
-    //   let relativeMAE_Sum = 0;  // Sum of method_MAE/baseline_MAE
+    this.state.csvData.map(method => {
+      const methodName = method.id;
+      const methodType = this.isMLMethod(methodName) ? "ML/AI" : "Human-Expert";
+      const localFilter = this.isMLMethod(methodName) ? "ml":"human";
+      let filterMatch = false;
+      let forecastCount = 0;
+      let MAE_Sum = 0;
+      let relativeMAE_Sum = 0;  // Sum of method_MAE/baseline_MAE
       
-    //   method.data.forEach((dp, idx) =>
-    //   {
-    //     if (dp.y != null && dp.x >= selectedDateRange[0] && dp.x <= selectedDateRange[1] && baselineAverageMAE.data[idx].y) {
-    //       MAE_Sum += dp.y;
-    //       relativeMAE_Sum += dp.y / baselineAverageMAE.data[idx].y;
-    //       forecastCount++;
-    //     }
-    //     if( forecastCount > cutOff){
-    //       cutOff = forecastCount;
-    //     }
-    //   });
-    //   if (forecastCount === 0) {
-    //     return null;
-    //   }
-    //   const averageMAE = (MAE_Sum / forecastCount).toFixed(2);
-    //   let relativeMAE = (relativeMAE_Sum / forecastCount);
-    //   // Baseline model is the benchmark of relative MAE.
-    //   if (method.id === "reich_COVIDhub_baseline") {
-    //     relativeMAE = 1;
-    //   }
+      method.data.forEach((dp, idx) =>
+      {
+        if (dp.y != null && dp.x >= selectedDateRange[0] && dp.x <= selectedDateRange[1] && baselineAverageMAE.data[idx].y) {
+          MAE_Sum += dp.y;
+          relativeMAE_Sum += dp.y / baselineAverageMAE.data[idx].y;
+          forecastCount++;
+        }
+        if( forecastCount > cutOff){
+          cutOff = forecastCount;
+        }
+      });
+      if (forecastCount === 0) {
+        return null;
+      }
+      const averageMAE = (MAE_Sum / forecastCount).toFixed(2);
+      let relativeMAE = (relativeMAE_Sum / forecastCount);
+      // Baseline model is the bencčmark of relative MAE.
+      if (method.id === "reich_COVIDhub_baseline") {
+        relativeMAE = 1;
+      }
 
-    //   if (((filter == 'all')|| (localFilter == filter)) &&  (cutOff == forecastCount)){
-    //     filterMatch = true;
-    //     console.log(filterMatch);
-    //   }
-    //   relativeMAE = relativeMAE.toFixed(3);
-    //   return { methodName, methodType, averageMAE, relativeMAE, forecastCount, filterMatch };
-    // }).filter(entry => (entry && entry.forecastCount && (entry.filterMatch == true)));  // Filter out methods without any forecasts.
-    // this.setState({
-    //   rankingTableData: rankingTableData,
-    // });
+      if (((filter == 'all')|| (localFilter == filter)) &&  (cutOff == forecastCount)){
+        filterMatch = true;
+        console.log(filterMatch);
+      }
+      relativeMAE = relativeMAE.toFixed(3);
+      return { methodName, methodType, averageMAE, relativeMAE, forecastCount, filterMatch };
+    }).filter(entry => (entry && entry.forecastCount && (entry.filterMatch == true)));  // Filter out methods without any forecasts.
+    this.setState({
+      rankingTableData: rankingTableData,
+    });
   };
   
 
