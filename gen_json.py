@@ -2,12 +2,24 @@ import pandas as pd
 import os
 import json
 import collections
+from datetime import datetime, date, timedelta
 
 JSON_DIR = 'json-forecasts'
 CASE_DIR = 'formatted-forecasts'
 FORECAST_TYPES = ['county-case', 'state-case', 'state-death']
+DAY_ZERO = datetime(2020, 1, 22) # 2020-1-23 is considered startdate of pand. in U.S.
 
-def pretty_write(path: str, data: dict):
+#turn ndays to actual dates, round to previous sunday
+def to_date(ndays):
+    delta = timedelta(days=int(ndays))
+    date_obj = DAY_ZERO + delta
+    one_day = timedelta(days=1)
+    while date_obj.weekday() < 6:
+        date_obj -= one_day
+    return date_obj.strftime("%m-%d-%Y")
+
+
+def pretty_write(path: str, data: dict, sort_states=False):
     with open(path, 'w') as f:
         sorted_dict = collections.OrderedDict()
         models = sorted(data.keys(), key=str.casefold)
@@ -15,9 +27,12 @@ def pretty_write(path: str, data: dict):
             sorted_dict[model] = {}
             days = sorted(data[model].keys(), key=str.casefold)
             for day in days:
-                data[model][day] = [-1 if str(val)=='null' else val for val in data[model][day]]
-                cases = '{}'.format(sorted(data[model][day]))
-                sorted_dict[model][day] = cases    
+                if sort_states:
+                    data[model][day] = [-1 if str(val)=='null' else val for val in data[model][day]]
+                    cases = '{}'.format(sorted(data[model][day]))
+                    sorted_dict[model][day] = cases
+                else:
+                    sorted_dict[model][day] = '{}'.format(data[model][day])
         json.dump(sorted_dict, f, indent=2)
 
 
@@ -47,7 +62,7 @@ def read_single_csv(path: str) -> dict:
     for i, row in enumerate(df.iterrows()):
         case_data = row[1]
         for label in case_data.index:
-            if label != 'State':
+            if label != 'State' and label != 'County':
                 if label in cases:
                     cases[label].append(case_data[label])
                 else:
@@ -56,6 +71,7 @@ def read_single_csv(path: str) -> dict:
 
 
 def main():
+    convert_dates = True
     path = os.path.join(os.getcwd(), CASE_DIR)
     for forecast in FORECAST_TYPES:
         forecast_path = os.path.join(path, forecast)
@@ -65,9 +81,16 @@ def main():
             all_cases[model_name].update(read_forecast(forecast_path, model_name))
         condensed_file = os.path.join(JSON_DIR, f'{forecast}.json')
         pretty_file = os.path.join(JSON_DIR, f'{forecast}-pretty.json')
+        if convert_dates:
+            for model in all_cases.keys():
+                temp = {to_date(ndays): val for ndays, val in all_cases[model].items()}
+                all_cases[model] = temp
         write(condensed_file, all_cases)
         pretty_write(pretty_file, all_cases)
 
 
 if __name__ == '__main__':
+    # with open('json-forecasts/state-case.json') as f:
+    #     all_dates = set()
+    #     data = json.load(f)
     main()
