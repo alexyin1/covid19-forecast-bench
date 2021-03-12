@@ -177,16 +177,24 @@ class Evaluation extends Component {
     let oldMaxRange = this.state.maxDateRange;
 
     Object.keys(jsonData).forEach(function(method) {
-      //console.log(this.state.jsonData.method);
+      //console.log("METH:" + JSON.stringify(jsonData[method]));
       for (var date in jsonData[method]) {
         //console.log(date);
-        if (!maxDateRange[0]) { maxDateRange[0] = date; }
-        if (!maxDateRange[1]) { maxDateRange[1] = date; }
-        if (date < maxDateRange[0]) {
+        if (!maxDateRange[0]) {
           maxDateRange[0] = date;
+          console.log("0:" + date);
         }
-        if (date > maxDateRange[1]) {
+        if (!maxDateRange[1]) {
           maxDateRange[1] = date;
+          console.log("1:" + date);
+        }
+        if (new Date(date).getTime() < new Date(maxDateRange[0]).getTime()) {
+          maxDateRange[0] = date;
+          console.log("0:" + date);
+        }
+        if (new Date(date) > new Date(maxDateRange[1]).getTime()) {
+          maxDateRange[1] = date;
+          console.log("1:" + date);
         }
       }
     });
@@ -463,7 +471,13 @@ class Evaluation extends Component {
     const MS_PER_WEEK = 1000 * 60 * 60 * 24 * 7;
     const start = new Date(this.state.maxDateRange[0]);
     const end = new Date(this.state.maxDateRange[1]);
-    return (end-start) / MS_PER_WEEK;
+    var result = (end.getTime() - start.getTime()) / MS_PER_WEEK;
+    console.log("END:" + end);
+    console.log("START:" + start);
+    console.log("PROC:" + (end.getTime()-start.getTime()));
+    console.log("MS_PER_WEEK:" + MS_PER_WEEK);
+    console.log("RES:" + result);
+    return result;
   }
 
   getDateFromWeekNumber = weekNum => { // WeekNum is the number of weeks since the maxDateRange[0].
@@ -624,7 +638,7 @@ class Evaluation extends Component {
           </div>
           <Row type="flex" justify="space-around">
             <div className="evalmap-container">
-              <Evalmap clickHandler={this.handleRegionChange} region={region} />
+              <Evalmap clickHandler={this.handleRegionChange} region={region}/>
             </div>
 
             <div className="evalgraph-container">

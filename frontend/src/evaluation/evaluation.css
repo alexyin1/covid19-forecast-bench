@@ -21,6 +21,7 @@
     /* margin-left: 5vw; */
     margin-top: 5vh;
     margin-right: 5vw;
+    width: 60vw;
 }
 
 .evalmap-container {
@@ -45,6 +46,10 @@
     margin-right: 5%;
     margin-bottom: 28px;
     padding: 20px 20px;
+}
+
+.ranking-table-container {
+    margin-top: 2vh;
 }
 /*
 .grid {
