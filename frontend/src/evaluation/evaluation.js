@@ -109,7 +109,7 @@ class Evaluation extends Component {
     ReactGA.pageview("/covid19-forecast-bench/evaluation");
 
     var data = this.parseJsonUrl();
-    setTimeout(() => {this.initialize(data);}, 1000);
+    setTimeout(() => {this.initialize(data);}, 500);
     try{
       if(this.props.match.params !== undefined && this.props.location.state!== undefined){
           const {handle} = this.props.match.params;
@@ -167,8 +167,8 @@ class Evaluation extends Component {
         dateRange: [0, this.getTotalNumberOfWeeks()]
       });
     });
-    this.addMethod("ensemble_SIkJa_RF");
     this.addMethod("reich_COVIDhub_ensemble");
+    this.addMethod("ensemble_SIkJa_RF");
   };
 
   updateData = jsonData => {
@@ -191,8 +191,6 @@ class Evaluation extends Component {
           if (curr_date > max_date) {
             maxDateRange[1] = date;
           }
-          //console.log(date);
-          //console.log(maxDateRange);
         }
       }
     });
@@ -200,9 +198,14 @@ class Evaluation extends Component {
     if (oldMaxRange[0] != maxDateRange[0] || oldMaxRange[1] != maxDateRange[1]) {
       var anch_data = [];
 
-      anch_data.push({x: "0", y: 0});
-      anch_data.push({x: "500", y: 0});
-      anch_data.push({x: "500", y: 200});
+      var anch_start = new Date(maxDateRange[0]);
+      var anch_end = new Date(maxDateRange[1]);
+      anch_start.setDate(anch_start.getDate() - 7);
+      anch_end.setDate(anch_end.getDate() + 7);
+
+      anch_data.push({x: this.getDateInFormat(anch_start), y: 0});
+      anch_data.push({x: this.getDateInFormat(anch_end), y: 0});
+      anch_data.push({x: this.getDateInFormat(anch_end), y: 200});
       
       anchorDatapoints.dataSeries = anch_data;
 
@@ -212,8 +215,8 @@ class Evaluation extends Component {
         });
     }
     this.reloadAll();
-    this.generateRanking();
-    //setTimeout(() => {this.generateRanking();}, 1000);
+    setTimeout(() => {this.generateRanking();}, 500);
+    //this.generateRanking();
     //console.log(this.state.mainGraphData);
   };
   // goes through each method and grabs the data relative the parameters set
@@ -224,44 +227,49 @@ class Evaluation extends Component {
     localFilter = this.isMLMethod(method) ? "ml":"human";
 
     let baselineAverageMAE = this.state.jsonData["reich_COVIDhub_baseline"];
-    var methodData = this.state.jsonData[method];
-    let MAE_Sum = 0;
+    var methodData = [];
+    
+    for (var date in this.state.jsonData[method]) {
+      methodData.push({"x": date, "y": this.state.jsonData[method][date]});
+    }
+    methodData.sort((a, b) => new Date(a.x) - new Date(b.x));
+
     let relativeMAE_Sum = 0;
 
-    //console.log(baselineAverageMAE);
-   
-    //console.log(reg_num);
     if (localFilter == this.state.filter || this.state.filter == "all") {
-      for (var date in methodData) {
+      for (var element in methodData) {
         // TODO: multiple regions
-        var curr_date = new Date(date);
-        var min_date = new Date(this.state.selectedDateRange[0]);
-        var max_date = new Date(this.state.selectedDateRange[1]);
-        if (curr_date >= min_date && curr_date <= max_date) {
-          var region_cases;
-          var MAE_cases;
-          if (reg_num == -1) {
-            let sum = 0;
-            let baseline_sum = 0;
-            for (var reg in methodData[date]) {
-              if (methodData[date][reg] != "null") {
-                sum += parseInt(methodData[date][reg]);
-                baseline_sum += parseInt(baselineAverageMAE[date][reg]);
+        var date = methodData[element].x;
+        var points = methodData[element].y;
+        if (baselineAverageMAE[date]) {
+          var curr_date = new Date(date);
+          var min_date = new Date(this.state.selectedDateRange[0]);
+          var max_date = new Date(this.state.selectedDateRange[1]);
+          if (curr_date >= min_date && curr_date <= max_date) {
+            var raw_y;
+            var MAE_y;
+            if (reg_num == -1) {
+              let sum = 0;
+              let baseline_sum = 0;
+              for (var reg in points) {
+                if (points[reg] != "null") {
+                  sum += parseInt(points[reg]);
+                  baseline_sum += parseInt(baselineAverageMAE[date][reg]);
+                }
               }
+
+              raw_y = (sum == 0) ? "null" : sum;
+              MAE_y = (baseline_sum == 0) ? "null" : baseline_sum;
+            }
+            else {
+              raw_y = parseInt(points[reg_num]);
+              MAE_y = parseInt(baselineAverageMAE[date][reg_num])
             }
 
-            region_cases = sum;
-            MAE_cases = baseline_sum;
-          }
-          else {
-            region_cases = parseInt(methodData[date][reg_num]);
-            MAE_cases = parseInt(baselineAverageMAE[date][reg_num])
-          }
-
-          if (region_cases != "null" &&  MAE_cases != 'null') {
-            MAE_Sum += region_cases;
-            relativeMAE_Sum += region_cases/ MAE_cases;
-            graph_data.push({x: date, y: relativeMAE_Sum,});
+            if (raw_y != "null" &&  MAE_y != 'null') {
+              relativeMAE_Sum += raw_y/ MAE_y;
+              graph_data.push({x: date, y: relativeMAE_Sum,});
+            }
           }
         }
       }
@@ -277,95 +285,104 @@ class Evaluation extends Component {
     var relativeMAE;
 
     var rankingTableData = [];
-    var idx = 0;
-    //console.log(methodList);
+    let cutOff = 0;
    
     for (var method in methodList) {
       var methodName = methodList[method];
-      var methodData = this.state.jsonData[methodName];
-      var localFilter = this.isMLMethod(methodName) ? "ml":"human";
+      var localFilter = this.isMLMethod(methodName) ? "ml" :"human";
       var methodType = this.isMLMethod(methodName) ? "ML/AI" : "Human-Expert";
+      var methodData = [];
+
+      console.log(methodName);
+      console.log(this.state.jsonData[methodName]);
+    
+      for (var date in this.state.jsonData[methodName]) {
+        methodData.push({"x": date, "y": this.state.jsonData[methodName][date]});
+      }
+      methodData.sort((a, b) => new Date(a.x) - new Date(b.x));
+
+      //console.log(methodData);
 
       let forecastCount = 0;
-      let cutOff = 0;
       let MAE_Sum = 0;
       let relativeMAE_Sum = 0;
       let fromSelectedStartDate = false;
       let upToSelectedEndDate = false;
       let updating = false;
 
-      if (localFilter == this.state.filter || this.state.filter == "all") {
-        for (var date in methodData) {
-          //console.log(date);
-          //console.log(baselineAverageMAE[date]);
-          
-          var curr_date = new Date(date);
-          var min_date = new Date(this.state.selectedDateRange[0]);
-          var max_date = new Date(this.state.selectedDateRange[1]);
-          if (curr_date >= min_date && curr_date <= max_date && baselineAverageMAE[date]) {
-            var region_cases;
-            var MAE_cases;
-            if (reg_num == -1) {
-              let sum = 0;
-              let baseline_sum = 0;
-              for (var reg in methodData[date]) {
-                if (methodData[date][reg] != "null" && baselineAverageMAE[date][reg] != "null") {
-                  sum += parseInt(methodData[date][reg]);
-                  baseline_sum += parseInt(baselineAverageMAE[date][reg]);
-                }
-              }
-              region_cases = (sum === 0) ? "null" : sum;
-              MAE_cases = (baseline_sum === 0) ? "null" : baseline_sum;
-            }
-            else {
-              region_cases = parseInt(methodData[date][reg_num]);
-              MAE_cases = parseInt(baselineAverageMAE[date][reg_num])
-            }
+      //console.log(methodName);
 
-            //console.log("region_cases and MAE_cases");
-            //console.log(region_cases);
-            //console.log(MAE_cases);
-  
-            if (region_cases != "null" &&  MAE_cases != "null") {
-              MAE_Sum += region_cases;
-              relativeMAE_Sum += region_cases/ MAE_cases;
-              forecastCount++;
-              if( forecastCount > cutOff){
-                    cutOff = forecastCount;
+      if (localFilter == this.state.filter || this.state.filter == "all") {
+        for (var element in methodData) {
+          // TODO: multiple regions
+          var date = methodData[element].x;
+          var points = methodData[element].y;
+          //console.log(date);
+          //console.log(points);
+
+          if (baselineAverageMAE[date]) {
+            var curr_date = new Date(date);
+            var min_date = new Date(this.state.selectedDateRange[0]);
+            var max_date = new Date(this.state.selectedDateRange[1]);
+            if (curr_date >= min_date && curr_date <= max_date) {
+              var raw_y;
+              var MAE_y;
+              if (reg_num == -1) {
+                let sum = 0;
+                let baseline_sum = 0;
+      
+                for (var reg in points) {
+                  if (points[reg] != "null") {
+                    sum += parseInt(points[reg]);
+                    baseline_sum += parseInt(baselineAverageMAE[date][reg]);
+    
+                  }
+                }
+    
+                raw_y = (sum == 0) ? "null" : sum;
+                MAE_y = (baseline_sum == 0) ? "null" : baseline_sum;
               }
-              if (curr_date == min_date) {
-                fromSelectedStartDate = true;
+              else {
+                raw_y = parseInt(points[reg_num]);
+                MAE_y = parseInt(baselineAverageMAE[date][reg_num])
+                
               }
-              if (curr_date == max_date) {
-                upToSelectedEndDate = true;
-              }
-              if (curr_date == new Date(this.state.maxDateRange[1])) {
-                updating = true;
+    
+              if (raw_y != "null" &&  MAE_y != "null") {
+                MAE_Sum += raw_y;
+                relativeMAE_Sum += raw_y/ MAE_y;
+                forecastCount++;
+                if( forecastCount > cutOff){
+                  cutOff = forecastCount;
+                }
+                if (curr_date == min_date) {
+                  fromSelectedStartDate = true;
+                }
+                if (curr_date == max_date) {
+                  upToSelectedEndDate = true;
+                }
+                if (curr_date == new Date(this.state.maxDateRange[1])) {
+                  updating = true;
+                }
               }
             }
           }
         }
-
-        const fitWithinDateRange = fromSelectedStartDate && upToSelectedEndDate;
-        const averageMAE = (MAE_Sum / forecastCount).toFixed(2);
-        relativeMAE = (relativeMAE_Sum / forecastCount);
-        if (methodName === "reich_COVIDhub_baseline") {
-          relativeMAE = 1;
-        }
-        relativeMAE = relativeMAE.toFixed(3);
-
-        //console.log(forecastCount);
-        //console.log(cutOff);
-
-        if (forecastCount && (cutOff == forecastCount)) {
-          rankingTableData[idx] = {methodName, methodType, averageMAE, relativeMAE, forecastCount, fitWithinDateRange, updating};
-          console.log(rankingTableData[idx]);
-          idx++;
+        if( forecastCount != 0){
+          const fitWithinDateRange = fromSelectedStartDate && upToSelectedEndDate;
+          const averageMAE = (MAE_Sum / forecastCount).toFixed(2);
+          relativeMAE = (relativeMAE_Sum / forecastCount);
+          if (methodName === "reich_COVIDhub_baseline") {
+            relativeMAE = 1;
+          }
+          relativeMAE = relativeMAE.toFixed(3);
+  
+          if (forecastCount && (cutOff == forecastCount)) {
+            rankingTableData[method] = {methodName, methodType, averageMAE, relativeMAE, forecastCount, fitWithinDateRange, updating};
+          }
         }
       }
     }
-
-    //console.log(rankingTableData);
 
     this.setState({rankingTableData: rankingTableData});
   };
@@ -416,7 +433,7 @@ class Evaluation extends Component {
       }
     );
 
-    console.log(this.state.mainGraphData);
+    //console.log(this.state.mainGraphData);
   };
 
   removeMethod = targetMethod => {
@@ -449,7 +466,6 @@ class Evaluation extends Component {
           }, {}),
       };
     });
-    //console.log(this.state.mainGraphData);
   };
 
   onValuesChange = (changedValues, allValues) => {
@@ -529,11 +545,11 @@ class Evaluation extends Component {
     const start = new Date(this.state.maxDateRange[0]);
     const end = new Date(this.state.maxDateRange[1]);
     var result = (end.getTime() - start.getTime()) / MS_PER_WEEK;
-    console.log("END:" + end);
-    console.log("START:" + start);
-    console.log("PROC:" + (end.getTime()-start.getTime()));
-    console.log("MS_PER_WEEK:" + MS_PER_WEEK);
-    console.log("RES:" + result);
+    //console.log("END:" + end);
+    //console.log("START:" + start);
+    //console.log("PROC:" + (end.getTime()-start.getTime()));
+    //console.log("MS_PER_WEEK:" + MS_PER_WEEK);
+    //console.log("RES:" + result);
     return result;
   }
 
@@ -541,9 +557,13 @@ class Evaluation extends Component {
     if (this.state.maxDateRange[0]) {
       const date = new Date(this.state.maxDateRange[0]);
       date.setDate(date.getDate() + 7 * weekNum);
-      return ((date.getMonth() > 8) ? (date.getMonth() + 1) : ('0' + (date.getMonth() + 1))) + '-' + ((date.getDate() > 9) ? date.getDate() : ('0' + date.getDate())) + '-' + date.getFullYear();
+      return this.getDateInFormat(date);
     }
     return null;
+  }
+
+  getDateInFormat = date => {
+    return ((date.getMonth() > 8) ? (date.getMonth() + 1) : ('0' + (date.getMonth() + 1))) + '-' + ((date.getDate() > 9) ? date.getDate() : ('0' + date.getDate())) + '-' + date.getFullYear();
   }
 
   handleDateRangeChange = e => {
