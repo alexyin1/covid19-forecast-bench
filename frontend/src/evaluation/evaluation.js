@@ -234,7 +234,7 @@ class Evaluation extends Component {
     }
     methodData.sort((a, b) => new Date(a.x) - new Date(b.x));
 
-    let relativeMAE_Sum = 0;
+    // let relativeMAE_Sum = 0;
 
     if (localFilter == this.state.filter || this.state.filter == "all") {
       for (var element in methodData) {
@@ -267,8 +267,8 @@ class Evaluation extends Component {
             }
 
             if (raw_y != "null" &&  MAE_y != 'null') {
-              relativeMAE_Sum += raw_y/ MAE_y;
-              graph_data.push({x: date, y: relativeMAE_Sum,});
+              //relativeMAE_Sum += raw_y/ MAE_y;
+              graph_data.push({x: date, y: Math.abs(raw_y-MAE_y),});
             }
           }
         }
