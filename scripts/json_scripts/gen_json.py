@@ -15,24 +15,35 @@ from . import JSON_DIR, CASE_DIR, FORECAST_TYPES, DAY_ZERO, US_DEATH_URL
 from . import to_date, read_csv, read_truth_csv
 
 
+def sort_data(data, is_truth=False):
+    models = sorted(data.keys(), key=str.casefold)
+    sorted_dict = collections.OrderedDict()
+    if is_truth:
+        days = sorted(data.keys(), key=lambda date: datetime.strptime(date, "%Y-%m-%d")) 
+        for day in days:
+            sorted_dict[day] = data[day]
+    else:
+        for model in models:
+            sorted_dict[model] = {}
+            periods = sorted(data[model].keys())
+            for period in periods:
+                sorted_dict[model][period] = {}
+                days = sorted(data[model][period].keys(), key=lambda date: datetime.strptime(date, "%Y-%m-%d"))
+                for day in days:
+                    sorted_dict[model][period][day] = data[model][period][day]
+    return sorted_dict
+
 def pretty_write(path: str, data: dict, is_truth=False):
     with open(path, 'w') as f:
-        sorted_dict = collections.OrderedDict()
-        models = sorted(data.keys(), key=str.casefold)
         if is_truth:
-            days = sorted(data.keys(), key=lambda date: datetime.strptime(date, "%Y-%m-%d")) 
-            for day in days:
-                sorted_dict[day] = '{}'.format(data[day])
+            for day in data.keys():
+                data[day] = '{}'.format(data[day])
         else:
-            for model in models:
-                sorted_dict[model] = {}
-                periods = sorted(data[model].keys())
-                for period in periods:
-                    sorted_dict[model][period] = {}
-                    days = sorted(data[model][period].keys(), key=lambda date: datetime.strptime(date, "%Y-%m-%d"))
-                    for day in days:
-                        sorted_dict[model][period][day] = '{}'.format(data[model][period][day])
-        json.dump(sorted_dict, f, indent=2)
+            for model in data.keys():
+                for period in data[model].keys():
+                    for day in data[model][period].keys():
+                        data[model][period][day] = '{}'.format(data[model][period][day])
+        json.dump(data, f, indent=2)
 
 
 def write(path: str, data: dict):
@@ -97,6 +108,7 @@ def condense_dates(data: dict) -> dict:
 #generate ground truth jsons
 def gen_ground_truth(url, name=''):
     data = read_truth_csv(url)
+    data = sort_data(data, is_truth=True)
     fpath = os.path.join(os.getcwd(), JSON_DIR)
     condensed_file = os.path.join(fpath, f'{name}.json')
     pretty_file = os.path.join(fpath, f'{name}-pretty.json')
@@ -121,12 +133,13 @@ def gen_predictions():
                 for period in all_cases[model].keys():
                     temp = {to_date(ndays): val for ndays, val in all_cases[model][period].items()}
                     all_cases[model][period] = temp
+        all_cases = sort_data(all_cases)
         write(condensed_file, all_cases)
         pretty_write(pretty_file, all_cases)
 
 
 def main():
-    # gen_predictions()
+    gen_predictions()
     gen_ground_truth(US_DEATH_URL, name='US_death_gt')
 
 if __name__ == '__main__':
