@@ -101,6 +101,8 @@ class Evaluation extends Component {
       maxDateRange: [],
       selectedDateRange: [],
       jsonData: {},
+      maeData: {},
+      groundTruth: {},
     };
   }
 
@@ -108,8 +110,8 @@ class Evaluation extends Component {
     ReactGA.initialize("UA-186385643-2");
     ReactGA.pageview("/covid19-forecast-bench/evaluation");
 
-    var data = this.parseJsonUrl();
-    setTimeout(() => {this.initialize(data);}, 500);
+    this.parseJsonData();
+    //setTimeout(() => {this.initialize(data);}, 1000);
     try{
       if(this.props.match.params !== undefined && this.props.location.state!== undefined){
           const {handle} = this.props.match.params;
@@ -121,45 +123,51 @@ class Evaluation extends Component {
       finally{
         //console.log("Load Complete");
       }
-  }
+  };
 
   componentWillMount = () => {
     this.formRef = React.createRef();
   };
 
-  parseJsonUrl = () => {
-    var url = "https://raw.githubusercontent.com/alexyin1/covid19-forecast-bench/master/json-forecasts/state-death.json";
+  parseJsonData = () => {
+    console.log("parse Json Data");
+    var url = "https://raw.githubusercontent.com/alexyin1/covid19-forecast-bench/master/json-data/state-death.json";
+    var methodList = new Array();
+    var dataDict = {};
+
+    fetch(url).then(response => response.json()).then((jsonResult) => {
+        Object.keys(jsonResult).forEach(function(key) {
+          dataDict[key] = jsonResult[key];
+          methodList.push(key);
+        });
+      }).catch((error) => {
+      console.error(error)
+    });
+    // console.log(methodList);
+    this.setState({jsonData: dataDict, maeData: dataDict, methodList: methodList}, function() {this.parseGroundTruth();})
+  };
+
+  parseGroundTruth = () => {
+    console.log("parse Ground Truth");
+    var url = "https://raw.githubusercontent.com/alexyin1/covid19-forecast-bench/master/json-data/US_death_gt.json";
     var dataDict = {};
     fetch(url).then(response => response.json()).then((jsonResult) => {
         Object.keys(jsonResult).forEach(function(key) {
           dataDict[key] = jsonResult[key];
-          //console.log(dataDict[key]);
         });
       }).catch((error) => {
       console.error(error)
     });
     this.setState((state) => {
-      return {jsonData: dataDict};
-    })
-    //console.log(this.state.jsonData);
-    //console.log("finished");
-    return dataDict;
-  }
-
-  initialize = (jsonData) => {
-    //console.log(jsonData);
-    var methodList = this.state.methodList;
-
-    Object.keys(jsonData).forEach(function(method) {
-      methodList = methodList.concat(method);
+      return {groundTruth: dataDict};
+    }, function() {
+      this.calculateMAE();
+      this.initialize();
     });
-    //console.log(method, jsonData[method]);
-    this.setState((state) => {
-      return {methodList: methodList};
-    });
+  };
 
-    //console.log(this.state.methodList);
-    this.updateData(jsonData);
+  initialize = () => {
+    console.log("Initialize");
     this.setState({
       selectedDateRange: this.state.maxDateRange
     }, ()=> {
@@ -167,29 +175,94 @@ class Evaluation extends Component {
         dateRange: [0, this.getTotalNumberOfWeeks()]
       });
     });
+
     this.addMethod("reich_COVIDhub_ensemble");
     this.addMethod("ensemble_SIkJa_RF");
   };
 
-  updateData = jsonData => {
+  calculateMAE = () => {
+    console.log("calculate MAE");
+    const jsonData = this.state.jsonData;
+    var maeData = this.state.maeData;
+    const methodList = this.state.methodList;
+
+    //setTimeout(function(){ console.log(methodList); }, 1000);
+    console.log(methodList);
+
+    //for (var method in methodList) {
+    for (var method = 0; method < methodList.length; method++) {
+      console.log(method);
+      var methodName = methodList[method];
+
+      for (var weeks = 1; weeks <= 4; weeks++) {
+        console.log(weeks);
+        for (var date in jsonData[methodName][weeks]) {
+          console.log(date);
+          var points = jsonData[methodName][weeks][date];
+          if (this.state.groundTruth[date]) {
+            var raw_y;
+            var gt_y;
+            for (var reg in points) {
+              raw_y = parseInt(points[reg]);
+              gt_y = parseInt(this.state.groundTruth[reg]);
+              if (raw_y != "null" &&  gt_y != "null") {
+                maeData[methodName][weeks][date][reg] = Math.abs(raw_y-gt_y);
+              }
+              else {
+                maeData[methodName][weeks][date][reg] = "null";
+              }
+            }
+          }
+        }
+      }
+    }
+
+    this.setState((state) => {
+      return {maeData: maeData};
+    }, function () {
+      this.updateData();
+      // console.log(this.state.jsonData);
+      // console.log(this.state.maeData);
+    })
+    
+  };
+
+  updateData = () => {
+    console.log("Update Data");
+    var jsonData = this.state.jsonData;
     let maxDateRange = [undefined, undefined];
     let anchorDatapoints = { maeData: [] };
     let oldMaxRange = this.state.maxDateRange;
+    var timeSpan = this.state.timeSpan;
 
     Object.keys(jsonData).forEach(function(method) {
-      for (var date in jsonData[method]) {
-        var curr_date = new Date(date);
-        if (jsonData[method][date]) {
-          if (!maxDateRange[0]) { maxDateRange[0] = date; }
-          if (!maxDateRange[1]) { maxDateRange[1] = date; }
-
-          var min_date = new Date(maxDateRange[0]);
-          var max_date = new Date(maxDateRange[1]);
-          if (curr_date < min_date) {
-            maxDateRange[0] = date;
+      if (timeSpan == "avg") {
+        for (var week in jsonData[method]) {
+          for (var date in jsonData[method][week]) {
+            if (jsonData[method][week][date] && !maxDateRange[0]) { maxDateRange[0] = date; }
+            if (jsonData[method][week][date] && !maxDateRange[1]) { maxDateRange[1] = date; }
+            if (jsonData[method][week][date] && date < maxDateRange[0]) {
+              maxDateRange[0] = date;
+              console.log(maxDateRange);
+            }
+            if (jsonData[method][week][date] && date > maxDateRange[1]) {
+              maxDateRange[1] = date;
+              console.log(maxDateRange);
+            }
           }
-          if (curr_date > max_date) {
+        }
+      }
+      else {
+        for (var date in jsonData[method][timeSpan]) {
+          if (jsonData[method][timeSpan][date] && !maxDateRange[0]) { maxDateRange[0] = date; }
+          if (jsonData[method][timeSpan][date] && !maxDateRange[1]) { maxDateRange[1] = date; }
+          if (jsonData[method][timeSpan][date] && date < maxDateRange[0]) {
+            maxDateRange[0] = date;
+            console.log(maxDateRange);
+          }
+          if (jsonData[method][timeSpan][date] && date > maxDateRange[1]) {
             maxDateRange[1] = date;
+            console.log(maxDateRange);
           }
         }
       }
@@ -203,6 +276,8 @@ class Evaluation extends Component {
       anch_start.setDate(anch_start.getDate() - 7);
       anch_end.setDate(anch_end.getDate() + 7);
 
+      console.log(this.getDateInFormat(anch_start));
+
       anch_data.push({x: this.getDateInFormat(anch_start), y: 0});
       anch_data.push({x: this.getDateInFormat(anch_end), y: 0});
       anch_data.push({x: this.getDateInFormat(anch_end), y: 200});
@@ -212,64 +287,53 @@ class Evaluation extends Component {
       this.setState((state) => {
           return {mainGraphData: { anchorDatapoints },
                   maxDateRange: maxDateRange};
-        });
+        }, function() {this.reloadAll();});
     }
-    this.reloadAll();
-    setTimeout(() => {this.generateRanking();}, 500);
     //this.generateRanking();
     //console.log(this.state.mainGraphData);
   };
+
   // goes through each method and grabs the data relative the parameters set
   graphData = method => {
-    var reg_num = US_STATES.findIndex(obj => obj === this.state.region);
-    var localFilter;
+    console.log("Graph Data");
+    var timeSpan = this.state.timeSpan;
+    var region = US_STATES.findIndex(obj => obj === this.state.region);
+    var localFilter = this.isMLMethod(method) ? "ml":"human";
     var graph_data = [];
-    localFilter = this.isMLMethod(method) ? "ml":"human";
-
-    let baselineAverageMAE = this.state.jsonData["reich_COVIDhub_baseline"];
-    var methodData = [];
     
-    for (var date in this.state.jsonData[method]) {
-      methodData.push({"x": date, "y": this.state.jsonData[method][date]});
-    }
-    methodData.sort((a, b) => new Date(a.x) - new Date(b.x));
-
-    // let relativeMAE_Sum = 0;
-
     if (localFilter == this.state.filter || this.state.filter == "all") {
-      for (var element in methodData) {
-        // TODO: multiple regions
-        var date = methodData[element].x;
-        var points = methodData[element].y;
-        if (baselineAverageMAE[date]) {
-          var curr_date = new Date(date);
-          var min_date = new Date(this.state.selectedDateRange[0]);
-          var max_date = new Date(this.state.selectedDateRange[1]);
-          if (curr_date >= min_date && curr_date <= max_date) {
-            var raw_y;
-            var MAE_y;
-            if (reg_num == -1) {
-              let sum = 0;
-              let baseline_sum = 0;
-              for (var reg in points) {
-                if (points[reg] != "null") {
-                  sum += parseInt(points[reg]);
-                  baseline_sum += parseInt(baselineAverageMAE[date][reg]);
-                }
+      for (var date in this.state.maeData[method]) {
+        //if ()
+        if (timeSpan == "avg") {
+          let sum = 0;
+          let total = 1;
+          for (var weeks = 1; weeks <= 4; weeks++) {
+            if (region == -1) {
+              total = 0;
+              for (var reg in this.state.maeData[method][weeks][date]) {
+                sum += this.state.maeData[method][weeks][date][reg];
+                total++;
               }
-
-              raw_y = (sum == 0) ? "null" : sum;
-              MAE_y = (baseline_sum == 0) ? "null" : baseline_sum;
             }
             else {
-              raw_y = parseInt(points[reg_num]);
-              MAE_y = parseInt(baselineAverageMAE[date][reg_num])
+              sum += this.state.maeData[method][weeks][date][region];
             }
-
-            if (raw_y != "null" &&  MAE_y != 'null') {
-              //relativeMAE_Sum += raw_y/ MAE_y;
-              graph_data.push({x: date, y: Math.abs(raw_y-MAE_y),});
+          }
+          // change date format to MM-DD-YYYY
+          graph_data.push({"x": date, "y": (sum / (4 * total))});
+        }
+        else {
+          if (region == -1) {
+            let total = 0;
+            let sum = 0;
+            for (var reg in this.state.maeData[method][timeSpan][date]) {
+              sum += this.state.maeData[method][timeSpan][date][reg];
+              total++;
             }
+            graph_data.push({"x": date, "y": (sum / total)});
+          }
+          else {
+            graph_data.push({"x": date, "y": this.state.maeData[method][timeSpan][date][region]});
           }
         }
       }
@@ -278,6 +342,8 @@ class Evaluation extends Component {
   };
 
   generateRanking = () => {
+    console.log("Generate Ranking");
+    /*
     var reg_num = US_STATES.findIndex(obj => obj === this.state.region);
 
     let baselineAverageMAE = this.state.jsonData["reich_COVIDhub_baseline"];
@@ -301,16 +367,12 @@ class Evaluation extends Component {
       }
       methodData.sort((a, b) => new Date(a.x) - new Date(b.x));
 
-      //console.log(methodData);
-
       let forecastCount = 0;
       let MAE_Sum = 0;
       let relativeMAE_Sum = 0;
       let fromSelectedStartDate = false;
       let upToSelectedEndDate = false;
       let updating = false;
-
-      //console.log(methodName);
 
       if (localFilter == this.state.filter || this.state.filter == "all") {
         for (var element in methodData) {
@@ -326,6 +388,7 @@ class Evaluation extends Component {
             var max_date = new Date(this.state.selectedDateRange[1]);
             if (curr_date >= min_date && curr_date <= max_date) {
               var raw_y;
+              var bsl_y;
               var MAE_y;
               if (reg_num == -1) {
                 let sum = 0;
@@ -340,17 +403,18 @@ class Evaluation extends Component {
                 }
     
                 raw_y = (sum == 0) ? "null" : sum;
-                MAE_y = (baseline_sum == 0) ? "null" : baseline_sum;
+                bsl_y = (baseline_sum == 0) ? "null" : baseline_sum;
               }
               else {
                 raw_y = parseInt(points[reg_num]);
-                MAE_y = parseInt(baselineAverageMAE[date][reg_num])
+                bsl_y = parseInt(baselineAverageMAE[date][reg_num])
                 
               }
     
-              if (raw_y != "null" &&  MAE_y != "null") {
-                MAE_Sum += raw_y;
-                relativeMAE_Sum += raw_y/ MAE_y;
+              if (raw_y != "null" &&  bsl_y != "null") {
+                MAE_y = Math.abs(raw_y-bsl_y);
+                MAE_Sum += MAE_y;
+                relativeMAE_Sum += MAE_y/ bsl_y;
                 forecastCount++;
                 if( forecastCount > cutOff){
                   cutOff = forecastCount;
@@ -385,6 +449,7 @@ class Evaluation extends Component {
     }
 
     this.setState({rankingTableData: rankingTableData});
+    */
   };
   
 
@@ -494,6 +559,7 @@ class Evaluation extends Component {
       },
       () => {
         prevMethods.forEach(this.addMethod);
+        this.generateRanking();
       }
     );
   };
@@ -502,7 +568,7 @@ class Evaluation extends Component {
     this.setState({
       forecastType: type
     });
-    this.updateData(this.state.jsonData);
+    this.updateData();
   };
 
 
@@ -516,7 +582,7 @@ class Evaluation extends Component {
     this.setState({
       timeSpan: e.target.value,
     });
-    this.updateData(this.state.jsonData);
+    this.updateData();
   };
 
   handleRegionChange = newRegion => {
@@ -525,7 +591,7 @@ class Evaluation extends Component {
       region: newRegion,
     });
 
-    this.updateData(this.state.jsonData);
+    this.updateData();
 
     this.formRef.current.setFieldsValue({
       region: this.state.region,
@@ -537,7 +603,7 @@ class Evaluation extends Component {
       filter: e.target.value,
     });
 
-    this.updateData(this.state.jsonData);
+    this.updateData();
   };
 
   getTotalNumberOfWeeks = () => {
@@ -573,7 +639,7 @@ class Evaluation extends Component {
     this.setState({
       selectedDateRange: [start, end]
     });
-    this.updateData(this.state.jsonData);
+    this.updateData();
   }
 
   render() {
