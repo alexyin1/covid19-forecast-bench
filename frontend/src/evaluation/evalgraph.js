@@ -87,12 +87,12 @@ const addChart = (methods, lines, scatters, legends, data, dateRange, colorSchem
 
       //console.log(dateRange);
       // Filter out NaN values, and datapoints out of selected date range.
-      const lineData = data[method]["dataSeries"];
-        // .filter(datapoint => (
-        //   datapoint.y != "null"
-        //   //!isNaN(datapoint.y)
-        //   && new Date(datapoint.x) >= new Date(dateRange[0])
-        //   && new Date(datapoint.x) <= new Date(dateRange[1])));
+      const lineData = data[method]["dataSeries"]
+        .filter(datapoint => (
+          datapoint.y != "null"
+          && !isNaN(datapoint.y)
+          && new Date(datapoint.x) >= new Date(dateRange[0])
+          && new Date(datapoint.x) <= new Date(dateRange[1])));
       //console.log(lineData);
       legends.push({ name: method, symbol: { fill: color } });
 

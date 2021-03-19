@@ -111,7 +111,7 @@ class Evaluation extends Component {
     ReactGA.pageview("/covid19-forecast-bench/evaluation");
 
     this.parseJsonData();
-    //setTimeout(() => {this.initialize(data);}, 1000);
+    setTimeout(() => {this.initialize();}, 1000);
     try{
       if(this.props.match.params !== undefined && this.props.location.state!== undefined){
           const {handle} = this.props.match.params;
@@ -130,67 +130,32 @@ class Evaluation extends Component {
   };
 
   parseJsonData = () => {
-    console.log("parse Json Data");
-    var url = "https://raw.githubusercontent.com/alexyin1/covid19-forecast-bench/master/json-data/state-death.json";
-    var methodList = new Array();
-    var dataDict = {};
+    var json_url = "https://raw.githubusercontent.com/alexyin1/covid19-forecast-bench/master/json-data/state-death.json";
+    var gt_url = "https://raw.githubusercontent.com/alexyin1/covid19-forecast-bench/master/json-data/US_death_gt.json";
+    var methodList = [];
+    var jsonData = {};
+    var maeData = {};
+    var groundTruth = {};
 
-    fetch(url).then(response => response.json()).then((jsonResult) => {
+    fetch(json_url).then(response => response.json()).then((jsonResult) => {
         Object.keys(jsonResult).forEach(function(key) {
-          dataDict[key] = jsonResult[key];
+          jsonData[key] = jsonResult[key];
+          maeData[key] = jsonResult[key];
           methodList.push(key);
         });
       }).catch((error) => {
       console.error(error)
     });
-    // console.log(methodList);
-    this.setState({jsonData: dataDict, maeData: dataDict, methodList: methodList}, function() {this.parseGroundTruth();})
-  };
 
-  parseGroundTruth = () => {
-    console.log("parse Ground Truth");
-    var url = "https://raw.githubusercontent.com/alexyin1/covid19-forecast-bench/master/json-data/US_death_gt.json";
-    var dataDict = {};
-    fetch(url).then(response => response.json()).then((jsonResult) => {
+    fetch(gt_url).then(response => response.json()).then((jsonResult) => {
         Object.keys(jsonResult).forEach(function(key) {
-          dataDict[key] = jsonResult[key];
+          groundTruth[key] = jsonResult[key];
         });
       }).catch((error) => {
       console.error(error)
     });
-    this.setState((state) => {
-      return {groundTruth: dataDict};
-    }, function() {
-      this.calculateMAE();
-      this.initialize();
-    });
-  };
 
-  initialize = () => {
-    console.log("Initialize");
-    this.setState({
-      selectedDateRange: this.state.maxDateRange
-    }, ()=> {
-      this.formRef.current.setFieldsValue({
-        dateRange: [0, this.getTotalNumberOfWeeks()]
-      });
-    });
-
-    this.addMethod("reich_COVIDhub_ensemble");
-    this.addMethod("ensemble_SIkJa_RF");
-  };
-
-  calculateMAE = () => {
-    console.log("calculate MAE");
-    const jsonData = this.state.jsonData;
-    var maeData = this.state.maeData;
-    const methodList = this.state.methodList;
-
-    //setTimeout(function(){ console.log(methodList); }, 1000);
-    console.log(methodList);
-
-    //for (var method in methodList) {
-    for (var method = 0; method < methodList.length; method++) {
+    for (var method in methodList) {
       console.log(method);
       var methodName = methodList[method];
 
@@ -199,12 +164,12 @@ class Evaluation extends Component {
         for (var date in jsonData[methodName][weeks]) {
           console.log(date);
           var points = jsonData[methodName][weeks][date];
-          if (this.state.groundTruth[date]) {
+          if (groundTruth[date]) {
             var raw_y;
             var gt_y;
             for (var reg in points) {
               raw_y = parseInt(points[reg]);
-              gt_y = parseInt(this.state.groundTruth[reg]);
+              gt_y = parseInt(groundTruth[reg]);
               if (raw_y != "null" &&  gt_y != "null") {
                 maeData[methodName][weeks][date][reg] = Math.abs(raw_y-gt_y);
               }
@@ -217,18 +182,28 @@ class Evaluation extends Component {
       }
     }
 
-    this.setState((state) => {
-      return {maeData: maeData};
-    }, function () {
-      this.updateData();
-      // console.log(this.state.jsonData);
-      // console.log(this.state.maeData);
-    })
-    
+    this.setState({
+      jsonData: jsonData,
+      maeData: maeData,
+      methodList: methodList,
+      groundTruth: groundTruth},
+    function() {
+        this.updateData();
+    });
+  };
+
+  initialize = () => {
+    this.setState({
+      selectedDateRange: this.state.maxDateRange},
+    function() {
+      this.formRef.current.setFieldsValue({dateRange: [0, this.getTotalNumberOfWeeks()]});
+    });
+
+    this.addMethod("reich_COVIDhub_ensemble");
+    this.addMethod("ensemble_SIkJa_RF");
   };
 
   updateData = () => {
-    console.log("Update Data");
     var jsonData = this.state.jsonData;
     let maxDateRange = [undefined, undefined];
     let anchorDatapoints = { maeData: [] };
@@ -284,10 +259,12 @@ class Evaluation extends Component {
       
       anchorDatapoints.dataSeries = anch_data;
 
-      this.setState((state) => {
-          return {mainGraphData: { anchorDatapoints },
-                  maxDateRange: maxDateRange};
-        }, function() {this.reloadAll();});
+      this.setState({
+        mainGraphData: { anchorDatapoints },
+        maxDateRange: maxDateRange},
+      function() {
+        this.reloadAll();
+      });
     }
     //this.generateRanking();
     //console.log(this.state.mainGraphData);
@@ -295,7 +272,6 @@ class Evaluation extends Component {
 
   // goes through each method and grabs the data relative the parameters set
   graphData = method => {
-    console.log("Graph Data");
     var timeSpan = this.state.timeSpan;
     var region = US_STATES.findIndex(obj => obj === this.state.region);
     var localFilter = this.isMLMethod(method) ? "ml":"human";
@@ -611,11 +587,6 @@ class Evaluation extends Component {
     const start = new Date(this.state.maxDateRange[0]);
     const end = new Date(this.state.maxDateRange[1]);
     var result = (end.getTime() - start.getTime()) / MS_PER_WEEK;
-    //console.log("END:" + end);
-    //console.log("START:" + start);
-    //console.log("PROC:" + (end.getTime()-start.getTime()));
-    //console.log("MS_PER_WEEK:" + MS_PER_WEEK);
-    //console.log("RES:" + result);
     return result;
   }
 
