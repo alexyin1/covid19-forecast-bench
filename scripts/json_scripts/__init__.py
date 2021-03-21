@@ -2,6 +2,7 @@ from datetime import datetime
 import pandas as pd
 import sys
 from datetime import datetime, date, timedelta
+import numpy as np
 
 IGNORED_FF_COLS = ['State', 'County', 'Country'] # counties to be ignored from formatted forecasts
 JSON_DIR = 'json-data'
@@ -38,10 +39,27 @@ def read_csv(path) -> dict:
     return df
 
 
-def read_truth_csv(url):
+def read_truth_csv(url, cum_sum=False):
     df = read_csv(url)
     cases = {}
     rows = df.axes[1]
-    for i, row in enumerate(rows):
-        cases[row] = list(df.iloc[:,i])
-    return cases    
+    if cum_sum:
+    # keep cumulative sum
+        for i, row in enumerate(rows):
+            cases[row] = list(df.iloc[:,i])
+    else:
+        for i, row in enumerate(rows):
+            if i == 0:
+                cases[row] = list(df.iloc[:,i])
+            else:
+                cases[row] = (df.iloc[:, i].to_numpy(dtype=np.int32) - df.iloc[:, i-1].to_numpy(dtype=np.int32))
+                cases[row] = np.where(cases[row]<0, 0, cases[row]) 
+                cases[row] = cases[row].tolist()
+                # there are weird negative cases on some days
+                # if max(cases[row]) > 1e6:
+                #     idx = cases[row].index(max(cases[row]))
+                #     print(df.iloc[idx, i])
+                #     print(df.iloc[idx, i-1])
+                #     print(cases[row][idx])
+                #     return
+    return cases
