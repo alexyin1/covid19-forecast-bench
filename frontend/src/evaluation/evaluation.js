@@ -10,64 +10,83 @@ import ReactGA from "react-ga";
 const { Option } = Select;
 
 // TODO: Add list of current regions to state and implement addRegion and removeRegion functions
-const US_STATES = [
-  "Washington",
-  "Illinois",
-  "California",
-  "Arizona",
-  "Massachusetts",
-  "Wisconsin",
-  "Texas",
-  "Nebraska",
-  "Utah",
-  "Oregon",
-  "Florida",
-  "New York",
-  "Rhode Island",
-  "Georgia",
-  "New Hampshire",
-  "North Carolina",
-  "New Jersey",
-  "Colorado",
-  "Maryland",
-  "Nevada",
-  "Tennessee",
-  "Hawai",
-  "Indiana",
-  "Kentucky",
-  "Minnesota",
-  "Oklahoma",
-  "Pennsylvania",
-  "South Carolina",
-  "District of Columbia",
-  "Kansas",
-  "Missouri",
-  "Vermont",
-  "Virginia",
-  "Connecticut",
-  "Iowa",
-  "Louisiana",
-  "Ohio",
-  "Michigan",
-  "South Dakota",
-  "Arkansas",
-  "Delaware",
-  "Mississippi",
-  "New Mexico",
-  "North Dakota",
-  "Wyoming",
-  "Alaska",
-  "Maine",
-  "Alabama",
-  "Idaho",
-  "Montana",
-  "Puerto Rico",
-  "Virgin Islands",
-  "Guam",
-  "West Virginia",
-  "Northern Mariana Islands",
-  "American Samoa",
-];
+const STATE_NAME_MAP = {
+  "united_states": "United States",
+  "germany": "Germany",
+  "poland": "Poland"
+}
+
+const STATES = { "united_states": [
+    "Washington",
+    "Illinois",
+    "California",
+    "Arizona",
+    "Massachusetts",
+    "Wisconsin",
+    "Texas",
+    "Nebraska",
+    "Utah",
+    "Oregon",
+    "Florida",
+    "New York",
+    "Rhode Island",
+    "Georgia",
+    "New Hampshire",
+    "North Carolina",
+    "New Jersey",
+    "Colorado",
+    "Maryland",
+    "Nevada",
+    "Tennessee",
+    "Hawai",
+    "Indiana",
+    "Kentucky",
+    "Minnesota",
+    "Oklahoma",
+    "Pennsylvania",
+    "South Carolina",
+    "District of Columbia",
+    "Kansas",
+    "Missouri",
+    "Vermont",
+    "Virginia",
+    "Connecticut",
+    "Iowa",
+    "Louisiana",
+    "Ohio",
+    "Michigan",
+    "South Dakota",
+    "Arkansas",
+    "Delaware",
+    "Mississippi",
+    "New Mexico",
+    "North Dakota",
+    "Wyoming",
+    "Alaska",
+    "Maine",
+    "Alabama",
+    "Idaho",
+    "Montana",
+    "Puerto Rico",
+    "Virgin Islands",
+    "Guam",
+    "West Virginia",
+    "Northern Mariana Islands",
+    "American Samoa",
+  ], 
+  "germany": [
+    "Brandenburg", "Berlin", "Baden-Württemberg", "Bayern", "Bremen",
+    "Hessen", "Hamburg", "Mecklenburg-Vorpommern", "Niedersachsen",
+    "Nordrhein-Westfalen", "Rheinland-Pfalz", "Saarland", "Schleswig-Holstein",
+    "Sachsen", "Sachsen-Anhalt", "Thüringen"
+  ],
+  "poland": [
+    "Kuyavian-Pomeranian", "Lubusz", "Łódź", "Lublin", "Lesser Poland",
+    "Masovian", "Opole", "Podlaskie", "Subcarpathian", "Pomeranian",
+    "Holy Cross", "Silesian", "Lower Silesian", "Warmian-Masurian", "Greater Poland",
+    "West Pomeranian"
+  ]
+};
 
 // TODO: Since we only have limited number of ML/AI methods, they are hardcoded here.
 // Later we got to fetch this file from a file/online source.
@@ -86,6 +105,7 @@ class Evaluation extends Component {
   constructor(props) {
     super(props);
     this.state = {
+      country: "united_states",
       region: "states",
       filter: "all",
       humanMethods: [],
@@ -109,6 +129,7 @@ class Evaluation extends Component {
   componentDidMount() {
     ReactGA.initialize("UA-186385643-2");
     ReactGA.pageview("/covid19-forecast-bench/evaluation");
+    console.log("MOUNTED\n");
 
     this.parseJsonData();
     setTimeout(() => {this.initialize();}, 1000);
@@ -126,6 +147,7 @@ class Evaluation extends Component {
   };
 
   componentWillMount = () => {
+    console.log("MOUNT\n");
     this.formRef = React.createRef();
   };
 
@@ -210,6 +232,8 @@ class Evaluation extends Component {
     let oldMaxRange = this.state.maxDateRange;
     var timeSpan = this.state.timeSpan;
 
+    // More json data needed to complete this function for Germany/Poland
+
     Object.keys(jsonData).forEach(function(method) {
       if (timeSpan == "avg") {
         for (var week in jsonData[method]) {
@@ -273,7 +297,7 @@ class Evaluation extends Component {
   // goes through each method and grabs the data relative the parameters set
   graphData = method => {
     var timeSpan = this.state.timeSpan;
-    var region = US_STATES.findIndex(obj => obj === this.state.region);
+    var region = STATES[this.state.country].findIndex(obj => obj === this.state.region);
     var localFilter = this.isMLMethod(method) ? "ml":"human";
     var graph_data = [];
     
@@ -320,7 +344,7 @@ class Evaluation extends Component {
   generateRanking = () => {
     console.log("Generate Ranking");
     /*
-    var reg_num = US_STATES.findIndex(obj => obj === this.state.region);
+    var reg_num = STATES[country].findIndex(obj => obj === this.state.region);
 
     let baselineAverageMAE = this.state.jsonData["reich_COVIDhub_baseline"];
     let methodList = this.state.methodList;
@@ -613,8 +637,16 @@ class Evaluation extends Component {
     this.updateData();
   }
 
+  handleCountryChange = e => {
+    this.setState({
+      country: e
+    });
+    this.updateData();
+  }
+
   render() {
     const {
+      country,
       filter,
       humanMethods,
       mlMethods,
@@ -646,10 +678,10 @@ class Evaluation extends Component {
     const regionOptions = [];
     regionOptions.push(
       <Option value="states" key="0">
-        US Average
+        {STATE_NAME_MAP[country]} Average
       </Option>
     );
-    US_STATES.forEach((state, index) => {
+    STATES[country].forEach((state, index) => {
       regionOptions.push(
         <Option value={state.replace(" ", "%20")} key={index + 1}>
           {state}
@@ -668,6 +700,20 @@ class Evaluation extends Component {
                   ref={this.formRef}
                   onValuesChange={this.onValuesChange}
                 >
+                  
+                  <Form.Item label="Forecast Country" name="forecastCountry">
+                    <Select showSearch defaultValue="united_states" onChange={this.handleCountryChange}>
+                      <Option value="germany">
+                        Germany
+                      </Option>
+                      <Option value="poland">
+                        Poland
+                      </Option>
+                      <Option value="united_states">
+                        United States
+                      </Option>
+                    </Select>
+                  </Form.Item>
 
                   <Form.Item label="Forecast Type" name="forecastType">
                     <Select showSearch defaultValue="state_death_eval" onChange={this.handleForecastTypeSelect}>
@@ -751,7 +797,7 @@ class Evaluation extends Component {
           </div>
           <Row type="flex" justify="space-around">
             <div className="evalmap-container">
-              <Evalmap clickHandler={this.handleRegionChange} region={region}/>
+              <Evalmap clickHandler={this.handleRegionChange} region={region} country={country}/>
             </div>
 
             <div className="evalgraph-container">
