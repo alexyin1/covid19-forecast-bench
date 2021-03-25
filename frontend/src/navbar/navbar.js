@@ -1,10 +1,10 @@
 import React, { Component } from "react";
 
-import {
-    Menu,
-    Row,
-    Col
-} from 'antd';
+//import {
+//    Menu,
+//    Row,
+//    Col
+//} from 'antd';
 import styles from "./navbar.css";
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { Navbar, Nav, NavDropdown } from 'react-bootstrap';
