@@ -397,7 +397,7 @@ class Evaluation extends Component {
 
   generateRanking = () => {
     var timeSpan = this.state.timeSpan;
-    var region = US_STATES.findIndex(obj => obj === this.state.region);
+    var region = STATES[this.state.country].findIndex(obj => obj === this.state.region); // changed from US_STATES to STATES[this.state.country]
 
     let baselineAverageMAE = this.state.maeData["reich_COVIDhub_baseline"];
     let methodList = this.state.methodList;
