@@ -191,10 +191,10 @@ class Evaluation extends Component {
   };
 
   loadJsonData = () => {
-    var json_url = "https://raw.githubusercontent.com/alexyin1/covid19-forecast-bench/master/json-data/forecasts/US_state_death.json";
-    var gt_url = "https://raw.githubusercontent.com/alexyin1/covid19-forecast-bench/master/json-data/gt/US_state_death.json";
+    var US_death_pred = "https://raw.githubusercontent.com/alexyin1/covid19-forecast-bench/master/json-data/forecasts/US_state_death.json";
+    var US_death_gt = "https://raw.githubusercontent.com/alexyin1/covid19-forecast-bench/master/json-data/gt/US_state_death.json";
     
-    this.promiseJsonData(json_url, gt_url).then((
+    this.promiseJsonData(US_death_pred, US_death_gt).then((
       [jsonResult, gtResult]) => {
 
         var jsonValues = this.fillJsonMaeMethods(jsonResult);
