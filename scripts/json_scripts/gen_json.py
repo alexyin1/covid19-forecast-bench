@@ -127,8 +127,8 @@ def gen_predictions():
         for model in os.listdir(forecast_path):
             if model != '.DS_Store':
                 all_cases[model] = read_forecast(forecast_path, model)
-        condensed_file = os.path.join(FORECAST_DIR, f'{forecast}.json')
-        pretty_file = os.path.join(FORECAST_DIR, f'{forecast}_pretty.json')
+        condensed_file = os.path.join(FORECAST_DIR, f'US_{forecast}.json')
+        pretty_file = os.path.join(FORECAST_DIR, f'US_{forecast}_pretty.json')
         if convert_dates:
             for model in all_cases.keys():
                 for period in all_cases[model].keys():
