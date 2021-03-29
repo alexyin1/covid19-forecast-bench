@@ -6,10 +6,15 @@ import numpy as np
 
 IGNORED_FF_COLS = ['State', 'County', 'Country'] # counties to be ignored from formatted forecasts
 JSON_DIR = 'json-data'
+GT_DIR = JSON_DIR + '/gt'
+FORECAST_DIR = JSON_DIR + '/forecasts'
 CASE_DIR = 'formatted-forecasts'
-FORECAST_TYPES = ['county-case', 'state-case', 'state-death']
+FORECAST_TYPES = ['county_case', 'state_case', 'state_death']
 DAY_ZERO = datetime(2020, 1, 22) # 2020-1-23 is considered startdate of pand. in U.S.
-US_DEATH_URL = "https://raw.githubusercontent.com/scc-usc/ReCOVER-COVID-19/master/results/forecasts/us_deaths.csv"
+US_STATE_DEATH_URL = "https://raw.githubusercontent.com/scc-usc/ReCOVER-COVID-19/master/results/forecasts/us_deaths.csv"
+US_STATE_CASE_URL = "https://raw.githubusercontent.com/scc-usc/ReCOVER-COVID-19/master/results/forecasts/us_data.csv"
+US_COUNTY_CASE_URL = "https://raw.githubusercontent.com/scc-usc/ReCOVER-COVID-19/master/results/forecasts/county_data.csv"
+US_COUNTY_DEATH_URL = "https://raw.githubusercontent.com/scc-usc/ReCOVER-COVID-19/master/results/forecasts/county_deaths.csv"
 
 
 #turn ndays to actual dates

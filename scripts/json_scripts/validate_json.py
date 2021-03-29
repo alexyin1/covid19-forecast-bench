@@ -14,14 +14,14 @@ import math
 
 sys.path.insert(1, 'scripts/json_scripts/')
 from . import JSON_DIR, CASE_DIR, FORECAST_TYPES, DAY_ZERO
-from . import to_date, read_csv, ymd_to_mdy, US_DEATH_URL
+from . import to_date, read_csv
 from .gen_json import read_forecast, read_truth_csv
 
 FORECASE_TYPE = 'formatted-forecasts/state-death'
 BASELINE_FORECAST = 'reich_COVIDhub_baseline'
 DEFAULT_FORECAST = 'ensemble_SIkJa_RF'
-DEFAULT_JSON = 'json-forecasts/state-death.json'
-
+DEFAULT_JSON = 'json-data/state-death.json'
+US_DEATH_GT = 'json-data/US_death_gt.json'
 
 def get_MAE(data):
     temp = 0
@@ -29,21 +29,27 @@ def get_MAE(data):
         temp += sum(val)
     return temp
 
-def validate_MAE(baseline, csv):
+def validate_MAE(old_csv, gt):
+    csv = {}
+    for i in old_csv.keys():
+        csv[i] = {to_date(ndays): val for ndays, val in old_csv[i].items()}
+    US_avg_mean = 0
     for i in range(1, 5, 1):
-        mae_sum = 0
-        count = 0
-        shared_dates = list(set(baseline[i]) & set(csv[i]))
+        shared_dates = list(set(csv[i]) & set(gt))
+        # skip mae regions
+        mean_mae_over_dates = 0
         for date in shared_dates:
-            print(to_date(date), end=' ')
-        # for date in shared_dates:
-        #     base_sum = sum(baseline[i][date])
-        #     csv_sum = sum(csv[i][date])
-        #     mae_sum += abs(base_sum - csv_sum)
-        # n_days = len(shared_dates)
-        # mae_sum /= n_days
-        # mae_sum /= 50
-        # print(mae)
+            print('n_forecasts', min(len(gt), len(csv[i][date])))
+            # print('PRED', csv[i][date])
+            # print('GT', gt[date])
+            sum_of_states_mae = 0
+            count = 0
+            for reg in range(min(len(gt), len(csv[i][date]))):
+                sum_of_states_mae += abs(csv[i][date][reg] - gt[date][reg])
+                count += 1
+            mean_mae_over_dates += sum_of_states_mae / count
+        US_avg_mean += mean_mae_over_dates / len(shared_dates)
+    print(US_avg_mean/4)
     return True
 
 def main():
@@ -52,12 +58,15 @@ def main():
     json_data = {}
     ground_truth_data = {}
     # baseline_data[BASELINE_FORECAST] = read_forecast(FORECASE_TYPE, BASELINE_FORECAST)
-    # csv_data[DEFAULT_FORECAST] = read_forecast(FORECASE_TYPE, DEFAULT_FORECAST)
-    ground_truth_data = read_truth_csv(US_DEATH_URL)
+    csv_data[DEFAULT_FORECAST] = read_forecast(FORECASE_TYPE, DEFAULT_FORECAST)
+    ground_truth_data = {}
+    with open(US_DEATH_GT) as f:
+        ground_truth_data.update(json.load(f))
     # print(ground_truth_data)
     # with open(DEFAULT_JSON) as f:
     #     json_data.update(json.load(f))
-    # validate_MAE(baseline_data[BASELINE_FORECAST], csv_data[DEFAULT_FORECAST])
+    #print(csv_data[DEFAULT_FORECAST])
+    validate_MAE(csv_data[DEFAULT_FORECAST], ground_truth_data)
 
 if __name__ == '__main__':
     main()

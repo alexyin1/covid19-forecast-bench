@@ -11,7 +11,8 @@ from operator import add
 import sys
 import math
 sys.path.insert(1, 'scripts/json_scripts/')
-from . import JSON_DIR, CASE_DIR, FORECAST_TYPES, DAY_ZERO, US_DEATH_URL
+from . import FORECAST_DIR, GT_DIR, CASE_DIR, FORECAST_TYPES, DAY_ZERO
+from . import US_STATE_DEATH_URL, US_STATE_CASE_URL, US_COUNTY_DEATH_URL, US_COUNTY_CASE_URL 
 from . import to_date, read_csv, read_truth_csv
 
 
@@ -109,9 +110,9 @@ def condense_dates(data: dict) -> dict:
 def gen_ground_truth(url, name=''):
     data = read_truth_csv(url)
     data = sort_data(data, is_truth=True)
-    fpath = os.path.join(os.getcwd(), JSON_DIR)
+    fpath = os.path.join(os.getcwd(), GT_DIR)
     condensed_file = os.path.join(fpath, f'{name}.json')
-    pretty_file = os.path.join(fpath, f'{name}-pretty.json')
+    pretty_file = os.path.join(fpath, f'{name}_pretty.json')
     write(condensed_file, data)
     pretty_write(pretty_file, data, is_truth=True)
 
@@ -126,8 +127,8 @@ def gen_predictions():
         for model in os.listdir(forecast_path):
             if model != '.DS_Store':
                 all_cases[model] = read_forecast(forecast_path, model)
-        condensed_file = os.path.join(JSON_DIR, f'{forecast}.json')
-        pretty_file = os.path.join(JSON_DIR, f'{forecast}-pretty.json')
+        condensed_file = os.path.join(FORECAST_DIR, f'{forecast}.json')
+        pretty_file = os.path.join(FORECAST_DIR, f'{forecast}_pretty.json')
         if convert_dates:
             for model in all_cases.keys():
                 for period in all_cases[model].keys():
@@ -140,7 +141,10 @@ def gen_predictions():
 
 def main():
     gen_predictions()
-    gen_ground_truth(US_DEATH_URL, name='US_death_gt')
+    gen_ground_truth(US_STATE_CASE_URL, name='US_state_case')
+    gen_ground_truth(US_STATE_DEATH_URL, name='US_state_death')
+    gen_ground_truth(US_COUNTY_CASE_URL, name='US_county_case')
+    gen_ground_truth(US_COUNTY_DEATH_URL, name='US_county_death')
 
 if __name__ == '__main__':
     #pass
