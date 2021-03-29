@@ -61,13 +61,15 @@ const stateAbbrMapping = {
 const evalmap = props => {
   const { clickHandler, region, country } = props;
   const mapHandler = event => {
-    console.log("TEST:\n" + JSON.stringify(event.target.dataset))
-    console.log("TEST:\n" + JSON.stringify(props));
-    clickHandler(abbrStateMapping[event.target.dataset.name]);
+    // console.log("TEST:\n" + JSON.stringify(event.target.dataset.name))
+    // console.log("TEST:\n" + JSON.stringify(props));
+    // console.log("TEST:\n" + abbrStateMapping[event.target.dataset.name]);
+    clickHandler(abbrStateMapping[country][event.target.dataset.name]);
   };
   
   var map = <Map onClick={mapHandler} country={country} defaultFill="#c05555" width="30vw" height="50vh" />
   if (region !== "states") {
+      //console.log("FILL:\n" + region);
       const abbr = stateAbbrMapping[country][region];
       const customizeFill = {};
       customizeFill[abbr] = {fill: "#c05555"};

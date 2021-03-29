@@ -417,7 +417,6 @@ var all_dimensions = {"united_states": {
 }
 
 function data(country) {
-  console.log("DATA:\n" + country);
   return all_dimensions[country];   
 }
 

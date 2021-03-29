@@ -675,8 +675,8 @@ class Evaluation extends Component {
   };
 
   handleRegionChange = newRegion => {
-  this.setState(
-    {
+    console.log("REGIONCHANGE:\n" + this.state.region + "\n" + newRegion);
+    this.setState({
       region: newRegion,
     });
 
@@ -771,6 +771,7 @@ class Evaluation extends Component {
       </Option>
     );
     STATES[country].forEach((state, index) => {
+      //console.log("STATE:\n" + state);
       regionOptions.push(
         <Option value={state.replace(" ", "%20")} key={index + 1}>
           {state}
@@ -819,8 +820,7 @@ class Evaluation extends Component {
                     <Select
                       showSearch
                       placeholder="Select a region"
-                      defaultValue="states"
-                      value={region}
+                      defaultValue={region}
                       onChange={this.handleRegionChange}
                     >
                       {regionOptions}
