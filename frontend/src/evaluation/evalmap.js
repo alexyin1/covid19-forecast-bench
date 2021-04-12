@@ -68,14 +68,17 @@ const evalmap = props => {
   };
   
   var map = <Map onClick={mapHandler} country={country} defaultFill="#c05555" width="30vw" height="50vh" />
-  if (region !== "states") {
-      //console.log("FILL:\n" + region);
-      const abbr = stateAbbrMapping[country][region];
-      const customizeFill = {};
-      customizeFill[abbr] = {fill: "#c05555"};
-      map = <Map onClick={mapHandler} customize={customizeFill} country={country} width="30vw" height="50vh" />
-  }
 
+  if (region[0] !== "states") {
+    //console.log("FILL:\n" + region);
+    const customizeFill = {};
+    console.log("FILL:\n" + JSON.stringify(region));
+    region.forEach(reg => {
+      const abbr = stateAbbrMapping[country][reg];
+      customizeFill[abbr] = {fill: "#c05555"};
+    });
+    map = <Map onClick={mapHandler} customize={customizeFill} country={country} width="30vw" height="50vh" />
+  }
 
   return (
     <div>

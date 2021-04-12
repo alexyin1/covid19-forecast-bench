@@ -106,7 +106,7 @@ class Evaluation extends Component {
     super(props);
     this.state = {
       country: "united_states",
-      region: "states",
+      region: ["states"],
       filter: "all",
       humanMethods: [],
       mlMethods: [],
@@ -124,6 +124,7 @@ class Evaluation extends Component {
       maeData: {},
       groundTruth: {},
       reset: 0,
+      multiRegion: false,
     };
   }
 
@@ -229,7 +230,7 @@ class Evaluation extends Component {
             var raw_y;
             var gt_y;
             for (var reg in points) {
-              // console.log("reg is good");
+              console.log("REG: " + reg);
               raw_y = parseInt(points[reg]);
               gt_y = parseInt(groundTruth[date][reg]);
               if (raw_y != "null" &&  gt_y != "null") {
@@ -329,7 +330,7 @@ class Evaluation extends Component {
   // goes through each method and grabs the data relative the parameters set
   graphData = method => {
     var timeSpan = this.state.timeSpan;
-    var region = STATES[this.state.country].findIndex(obj => obj === this.state.region);
+    var region = STATES[this.state.country].findIndex(obj => obj === this.state.region[0]);
     var localFilter = this.isMLMethod(method) ? "ml":"human";
     var graph_data = [];
 
@@ -397,7 +398,7 @@ class Evaluation extends Component {
 
   generateRanking = () => {
     var timeSpan = this.state.timeSpan;
-    var region = STATES[this.state.country].findIndex(obj => obj === this.state.region); // changed from US_STATES to STATES[this.state.country]
+    var region = STATES[this.state.country].findIndex(obj => obj === this.state.region[0]); // changed from US_STATES to STATES[this.state.country]
 
     let baselineAverageMAE = this.state.maeData["reich_COVIDhub_baseline"];
     let methodList = this.state.methodList;
@@ -670,20 +671,52 @@ class Evaluation extends Component {
   handleTimeSpanSelect = e => {
     this.setState({
       timeSpan: e.target.value,
+    }, () => {
+      this.updateData();
     });
-    this.updateData();
   };
 
   handleRegionChange = newRegion => {
-    console.log("REGIONCHANGE:\n" + this.state.region + "\n" + newRegion);
+    var changedRegion;
+    if(newRegion === "states") {
+      changedRegion = new Array(0);
+      changedRegion.push(newRegion);
+    }
+    else {
+      console.log("OLD REGION: " + JSON.stringify(this.state.region));
+      console.log("MULTIREGION: " + this.state.multiRegion);
+      if(this.state.multiRegion !== true) {
+        changedRegion = new Array(0);
+        changedRegion.push(newRegion);
+        console.log(newRegion + " " + changedRegion);
+      }
+      else {
+        if(this.state.region[0] === "states") {
+          changedRegion = new Array(0);
+          changedRegion.push(newRegion);
+        }
+        else {
+          var index = this.state.region.indexOf(newRegion);
+          changedRegion = this.state.region;
+          if(index == -1) {
+            changedRegion.push(newRegion);
+          }
+          else {
+            changedRegion.splice(index, 1);
+          }
+        }
+      }
+      console.log("NEW REGION: " + changedRegion);
+    }
+
     this.setState({
-      region: newRegion,
-    });
+      region: changedRegion,
+    }, () => {
+      this.updateData();
 
-    this.updateData();
-
-    this.formRef.current.setFieldsValue({
-      region: this.state.region,
+      this.formRef.current.setFieldsValue({
+        region: this.state.region,
+      });
     });
   };
 
@@ -728,9 +761,11 @@ class Evaluation extends Component {
 
   handleCountryChange = e => {
     this.setState({
-      country: e
+      country: e,
+      region: ["states"]
+    }, () => {
+      this.updateData();
     });
-    this.updateData();
   }
 
   render() {
@@ -748,7 +783,8 @@ class Evaluation extends Component {
       mainGraphData,
       rankingTableData,
       maxDateRange,
-      selectedDateRange
+      selectedDateRange,
+      multiRegion,
     } = this.state;
 
     const methodOptions = methodList
@@ -820,7 +856,7 @@ class Evaluation extends Component {
                     <Select
                       showSearch
                       placeholder="Select a region"
-                      defaultValue={region}
+                      defaultValue={"states"}
                       onChange={this.handleRegionChange}
                     >
                       {regionOptions}
@@ -870,6 +906,7 @@ class Evaluation extends Component {
                       <Radio value="4">4 week ahead</Radio>
                     </Radio.Group>
                   </Form.Item>
+
                   <Form.Item label="Prediction Date Range" name="dateRange">
                     <Slider
                      range
@@ -879,6 +916,20 @@ class Evaluation extends Component {
                      tipFormatter={this.getDateFromWeekNumber}
                      onAfterChange={this.handleDateRangeChange}
                      />
+                  </Form.Item>
+
+                  <Form.Item label="Select Multiple Regions?" name="multiRegion">
+                    <Radio.Group
+                      value={multiRegion}
+                      defaultValue={false}
+                      onChange={e => {
+                        this.setState({
+                          multiRegion: e.target.value,
+                        })
+                      }}>
+                      <Radio value={true}>Yes</Radio>
+                      <Radio value={false}>No</Radio>
+                    </Radio.Group>
                   </Form.Item>
                 </Form>
               </Col>

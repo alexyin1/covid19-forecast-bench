@@ -48,14 +48,22 @@ class Map extends React.Component {
     </g>);
     var paths = this.buildPaths();
 
+    var size = {
+      "germany": "0 0 2000 1200",
+      "poland": "0 0 1600 960",
+      "united_states": "0 0 1000 600",
+    }
+
     return (
-      <svg className="state-map" xmlns="http://www.w3.org/2000/svg" width={this.props.width} height={this.props.height} viewBox="0 0 959 593">
-        <title>{this.props.title}</title>
-        <g className="outlines">
-          {paths}
-          {this.props.country === "united_states" ? us_dc : ""}
-        </g>
-      </svg>
+      <view style={{aspectRatio: 1}}>
+        <svg className="state-map" xmlns="http://www.w3.org/2000/svg" width={this.props.width} height={this.props.height} viewBox={size[this.props.country]}>
+          <title>{this.props.title}</title>
+          <g className="outlines">
+            {paths}
+            {this.props.country === "united_states" ? us_dc : ""}
+          </g>
+        </svg>
+      </view>
     );
   }
 }
