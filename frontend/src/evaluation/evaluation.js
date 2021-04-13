@@ -101,6 +101,7 @@ const ML_MODELS = [
   "SIkJaun10_hyper7_smooth7",
 ];
 
+
 class Evaluation extends Component {
   constructor(props) {
     super(props);
@@ -122,6 +123,8 @@ class Evaluation extends Component {
       selectedDateRange: [],
       jsonData: {},
       maeData: {},
+      mapeData: {},
+      rmseData: {},
       groundTruth: {},
       reset: 0,
       multiRegion: false,
@@ -213,6 +216,13 @@ class Evaluation extends Component {
           // if (methodList.length == 0) {
           //   console.log("utter failure");
           // }
+
+        if( this.state.metrics == "MAPE"){
+          this.resolveMAPE(jsonData, mapeData, methodList, groundTruth);
+        }
+        if(this.state.emtrics == "RMSE"){
+          this.resolveRMSE(jsonData, rmseData, methodList, groundTruth);
+        }
           this.resolveMAE(jsonData, maeData, methodList, groundTruth);
         });
     });
@@ -230,7 +240,7 @@ class Evaluation extends Component {
             var raw_y;
             var gt_y;
             for (var reg in points) {
-              console.log("REG: " + reg);
+              //console.log("REG: " + reg);
               raw_y = parseInt(points[reg]);
               gt_y = parseInt(groundTruth[date][reg]);
               if (raw_y != "null" &&  gt_y != "null") {
@@ -255,6 +265,50 @@ class Evaluation extends Component {
     maeDataSolved.then((maeData) => {
       this.setState({
         maeData: maeData},
+      function() {
+        this.updateData();
+      });
+    });
+  };
+
+
+  calculateMAPE = (jsonData, mapeData, methodList, groundTruth) => {
+    for (var method in methodList) {
+      // console.log("methodList is good");
+      var methodName = methodList[method];
+      for (var weeks = 1; weeks <= 4; weeks++) {
+        for (var date in jsonData[methodName][weeks]) {
+          // console.log("dates are good");
+          var points = jsonData[methodName][weeks][date];
+          if (groundTruth[date] && points) {
+            var raw_y;
+            var gt_y;
+            for (var reg in points) {
+              //console.log("REG: " + reg);
+              raw_y = parseInt(points[reg]);
+              gt_y = parseInt(groundTruth[date][reg]);
+              if (raw_y != "null" &&  gt_y != "null") {
+                mapeData[methodName][weeks][date][reg] = Math.abs((raw_y-gt_y)/gt_y);
+                // console.log("changed");
+
+              }
+              else {
+                mapeData[methodName][weeks][date][reg] = "null";
+                // console.log("changed");
+              }
+            }
+          }
+        }
+      }
+    }
+    return mapeData;
+  };
+
+  resolveMAPE = (jsonData, mapeData, methodList, groundTruth) => {
+    var mapeDataSolved = Promise.resolve(this.calculateMAPE(jsonData, mapeData, methodList, groundTruth));
+    mapeDataSolved.then((mapeData) => {
+      this.setState({
+        mapeData: mapeData},
       function() {
         this.updateData();
       });
@@ -314,7 +368,7 @@ class Evaluation extends Component {
       this.setState({
         mainGraphData: { anchorDatapoints },
         maxDateRange: maxDateRange},
-      function() {
+      () => {
         if (this.state.reset == 0) {
           this.initialize();
         }
@@ -337,15 +391,23 @@ class Evaluation extends Component {
     if (localFilter == this.state.filter || this.state.filter == "all") {
       // average of predictions
       if (timeSpan == "avg") {
-        while (this.state.maeData[method].length == 0) {}
-        for (var date in this.state.maeData[method][1]) {
+        var errorMetric = this.state.maeData;
+        if( this.state.metrics == "MAPE"){
+          errorMetric = this.state.mapeData;
+        }
+        if(this.state.emtrics == "RMSE"){
+          errorMetric = this.state.rmseData;
+        }
+
+        // while (this.state.maeData[method].length == 0) {}
+        for (var date in errorMetric[method][1]) {
           let sum = 0;
           let total = 0;
           for (var weeks = 1; weeks <= 4; weeks++) {
-            if (this.state.maeData[method][weeks][date]) {
+            if (errorMetric[method][weeks][date]) {
               if (region == -1) {
-                for (var reg in this.state.maeData[method][weeks][date]) {
-                  let y = parseInt(this.state.maeData[method][weeks][date][reg]);
+                for (var reg in errorMetric[method][weeks][date]) {
+                  let y = parseInt(errorMetric[method][weeks][date][reg]);
                   if (!isNaN(y)) {
                     sum += y;
                     total++;
@@ -353,7 +415,7 @@ class Evaluation extends Component {
                 }
               }
               else {
-                let y = parseInt(this.state.maeData[method][weeks][date][region]);
+                let y = parseInt(errorMetric[method][weeks][date][region]);
                 if (!isNaN(y)) {
                   sum += y;
                   total++;
@@ -368,14 +430,14 @@ class Evaluation extends Component {
         }
       }
       else {
-        while (this.state.maeData[method].length == 0) {}
-        for (var date in this.state.maeData[method][timeSpan]) {
+        // while (this.state.maeData[method].length == 0) {}
+        for (var date in errorMetric[method][timeSpan]) {
           let displayDate = new Date(date);
           if (region == -1) {
             let total = 0;
             let sum = 0;
-            for (var reg in this.state.maeData[method][timeSpan][date]) {
-              let y = parseInt(this.state.maeData[method][timeSpan][date][reg]);
+            for (var reg in errorMetric[method][timeSpan][date]) {
+              let y = parseInt(errorMetric[method][timeSpan][date][reg]);
               if (!isNaN(y)) {
                 sum += y;
                 total++;
@@ -386,7 +448,7 @@ class Evaluation extends Component {
             }
           }
           else {
-            graph_data.push({x: this.getDateInFormat(displayDate), y: this.state.maeData[method][timeSpan][date][region]});
+            graph_data.push({x: this.getDateInFormat(displayDate), y: errorMetric[method][timeSpan][date][region]});
           }
         }
       }
@@ -426,7 +488,7 @@ class Evaluation extends Component {
 
       if (localFilter == this.state.filter || this.state.filter == "all") {
         Promise.resolve(this.getMethodMAE(methodName)).then((methodMAE) => {
-          console.log(methodMAE);
+          //console.log(methodMAE);
           if (timeSpan == "avg") {
             for (var date in methodMAE[1]) {
               let curr_date = new Date(date);
@@ -545,6 +607,7 @@ class Evaluation extends Component {
 
   methodIsSelected = method => {
     if (this.state.allMethods && method) {
+      console.log("method already exists")
       return this.state.allMethods.includes(method);
     }
     return false;
@@ -564,10 +627,11 @@ class Evaluation extends Component {
   };
 
   addMethod = method => {
-    if (this.methodIsSelected(method)) {
-      return;
-    }
-
+    // if (this.methodIsSelected(method)) {
+      // return;
+    // }
+    // console.log("Adding method")
+    // console.log(method)
      const methodDataSeries = this.graphData(method);
      const methodGraphData = { dataSeries: methodDataSeries };
 
@@ -641,6 +705,7 @@ class Evaluation extends Component {
 
   reloadAll = () => {
     const prevMethods = this.state.allMethods;
+    console.log("Reload ALL");
     this.setState(
       {
         humanMethods: [],
@@ -669,11 +734,12 @@ class Evaluation extends Component {
   };
 
   handleTimeSpanSelect = e => {
+
     this.setState({
-      timeSpan: e.target.value,
-    }, () => {
-      this.updateData();
-    });
+      timeSpan: e.target.value
+    }, () => { this.updateData();}
+    );
+    console.log(this.state.timeSpan);
   };
 
   handleRegionChange = newRegion => {
