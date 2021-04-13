@@ -6,9 +6,13 @@ import "./evaluation.css";
 import { Form, Select, Row, Col, Radio, Slider } from "antd";
 import FormItem from "antd/lib/form/FormItem";
 import ReactGA from "react-ga";
+import _ from "lodash";
 
 const { Option } = Select;
 
+const sleep = (milliseconds) => {
+  return new Promise(resolve => setTimeout(resolve, milliseconds))
+}
 // TODO: Add list of current regions to state and implement addRegion and removeRegion functions
 const STATE_NAME_MAP = {
   "united_states": "United States",
@@ -116,7 +120,7 @@ class Evaluation extends Component {
       mainGraphData: {},
       rankingTableData: [],
       metrics: "MAE",
-      metricsList: ["MAE", "MAPE (coming soon)", "RMSE (coming soon)"],
+      metricsList: ["MAE", "MAPE", "RMSE"],
       forecastType: "state_death_eval",
       timeSpan: "avg",
       maxDateRange: [],
@@ -150,26 +154,34 @@ class Evaluation extends Component {
         //console.log("Load Complete");
       }
   };
-  fillJsonMaeMethods = (jsonResult) => {
+  fillJsonErrorMethods = (jsonResult) => {
     var methodList = [];
     var jsonData = {};
     var maeData = {};
+    var mapeData = {};
+    var rmseData = {};
+    // jsonData = JSON.parse(JSON.stringify(jsonResult));
+    // maeData = JSON.parse(JSON.stringify(jsonResult));
+    // mapeData = JSON.parse(JSON.stringify(jsonResult));
+    // rmseData = JSON.parse(JSON.stringify(jsonResult));
     Object.keys(jsonResult).forEach(function(key) {
         jsonData[key] = jsonResult[key];
         maeData[key] = jsonResult[key];
+        mapeData[key] = jsonResult[key];
+        rmseData[key] =jsonResult[key];
         methodList.push(key);
       });
-    var jsonValues = [jsonData, maeData, methodList];
+    var jsonValues = [jsonData, maeData, mapeData,rmseData, methodList];
     return jsonValues;
   };
 
   fillGroundTruth = (gtResult) =>{
     
     var groundTruth = {};
-
-    Object.keys(gtResult).forEach(function(key) {
-      groundTruth[key] = gtResult[key];
-    });
+    groundTruth = _.cloneDeep(gtResult);
+    // Object.keys(gtResult).forEach(function(key) {
+    //   groundTruth[key] = gtResult[key];
+    // });
     return groundTruth;
   }
 
@@ -201,15 +213,19 @@ class Evaluation extends Component {
     this.promiseJsonData(US_death_pred, US_death_gt).then((
       [jsonResult, gtResult]) => {
 
-        var jsonValues = this.fillJsonMaeMethods(jsonResult);
+        var jsonValues = this.fillJsonErrorMethods(jsonResult);
         var groundTruth = this.fillGroundTruth(gtResult);
         console.log(jsonValues);
         var jsonData = jsonValues[0];
         var maeData = jsonValues[1];
-        var methodList = jsonValues[2];
+        var mapeData = jsonValues[2];
+        var rmseData = jsonValues[3];
+        var methodList = jsonValues[4];
         this.setState({
           jsonData: jsonData,
           maeData: maeData,
+          mapeData: mapeData,
+          rmseData: rmseData,
           methodList: methodList,
           groundTruth: groundTruth},
         function() {
@@ -217,18 +233,16 @@ class Evaluation extends Component {
           //   console.log("utter failure");
           // }
 
-        if( this.state.metrics == "MAPE"){
-          this.resolveMAPE(jsonData, mapeData, methodList, groundTruth);
-        }
-        if(this.state.emtrics == "RMSE"){
-          this.resolveRMSE(jsonData, rmseData, methodList, groundTruth);
-        }
-          this.resolveMAE(jsonData, maeData, methodList, groundTruth);
+        this.resolveMetrics(jsonData, maeData, rmseData, mapeData, methodList, groundTruth);
         });
     });
   };
 
-  calculateMAE = (jsonData, maeData, methodList, groundTruth) => {
+  calculateMetrics = (jsonData, maeData, rmseData, mapeData, methodList, groundTruth) => {
+    var metric = this.state.metrics;
+
+    console.log("Calculateing metric: ");
+    console.log(metric);
     for (var method in methodList) {
       // console.log("methodList is good");
       var methodName = methodList[method];
@@ -244,99 +258,24 @@ class Evaluation extends Component {
               raw_y = parseInt(points[reg]);
               gt_y = parseInt(groundTruth[date][reg]);
               if (raw_y != "null" &&  gt_y != "null") {
-                maeData[methodName][weeks][date][reg] = Math.abs(raw_y-gt_y);
-                // console.log("changed");
+
+                
+                if(metric == "MAE"){
+
+                  maeData[methodName][weeks][date][reg] = Math.abs(raw_y-gt_y);
+                }
+                if( metric == "MAPE"){
+                  mapeData[methodName][weeks][date][reg] = 100 * Math.abs((raw_y-gt_y)/gt_y);
+
+                }
+                if( metric == "RMSE"){
+                  rmseData[methodName][weeks][date][reg] = Math.pow((gt_y-raw_y), 2);
+                }
 
               }
               else {
                 maeData[methodName][weeks][date][reg] = "null";
-                // console.log("changed");
-              }
-            }
-          }
-        }
-      }
-    }
-    return maeData;
-  };
-
-  resolveMAE = (jsonData, maeData, methodList, groundTruth) => {
-    var maeDataSolved = Promise.resolve(this.calculateMAE(jsonData, maeData, methodList, groundTruth));
-    maeDataSolved.then((maeData) => {
-      this.setState({
-        maeData: maeData},
-      function() {
-        this.updateData();
-      });
-    });
-  };
-
-
-  calculateMAPE = (jsonData, mapeData, methodList, groundTruth) => {
-    for (var method in methodList) {
-      // console.log("methodList is good");
-      var methodName = methodList[method];
-      for (var weeks = 1; weeks <= 4; weeks++) {
-        for (var date in jsonData[methodName][weeks]) {
-          // console.log("dates are good");
-          var points = jsonData[methodName][weeks][date];
-          if (groundTruth[date] && points) {
-            var raw_y;
-            var gt_y;
-            for (var reg in points) {
-              //console.log("REG: " + reg);
-              raw_y = parseInt(points[reg]);
-              gt_y = parseInt(groundTruth[date][reg]);
-              if (raw_y != "null" &&  gt_y != "null") {
-                mapeData[methodName][weeks][date][reg] = Math.abs((raw_y-gt_y)/gt_y);
-                // console.log("changed");
-
-              }
-              else {
                 mapeData[methodName][weeks][date][reg] = "null";
-                // console.log("changed");
-              }
-            }
-          }
-        }
-      }
-    }
-    return mapeData;
-  };
-
-  resolveMAPE = (jsonData, mapeData, methodList, groundTruth) => {
-    var mapeDataSolved = Promise.resolve(this.calculateMAPE(jsonData, mapeData, methodList, groundTruth));
-    mapeDataSolved.then((mapeData) => {
-      this.setState({
-        mapeData: mapeData},
-      function() {
-        this.updateData();
-      });
-    });
-  };
-
-
-  calculateRMSE = (jsonData, rmseData, methodList, groundTruth) => {
-    for (var method in methodList) {
-      // console.log("methodList is good");
-      var methodName = methodList[method];
-      for (var weeks = 1; weeks <= 4; weeks++) {
-        for (var date in jsonData[methodName][weeks]) {
-          // console.log("dates are good");
-          var points = jsonData[methodName][weeks][date];
-          if (groundTruth[date] && points) {
-            var raw_y;
-            var gt_y;
-            for (var reg in points) {
-              //console.log("REG: " + reg);
-              raw_y = parseInt(points[reg]);
-              gt_y = parseInt(groundTruth[date][reg]);
-              if (raw_y != "null" &&  gt_y != "null") {
-                rmseData[methodName][weeks][date][reg] = Math.pow((gt_y-raw_y), 2);
-                // console.log("changed");
-
-              }
-              else {
                 rmseData[methodName][weeks][date][reg] = "null";
                 // console.log("changed");
               }
@@ -345,20 +284,25 @@ class Evaluation extends Component {
         }
       }
     }
-    return rmseData;
+    var MetricErrors = [maeData, rmseData, mapeData];
+    return MetricErrors;
   };
 
-
-  resolveRMSE = (jsonData, rmseData, methodList, groundTruth) => {
-    var maeDataSolved = Promise.resolve(this.calculateRMSE(jsonData, rmseData, methodList, groundTruth));
-    maeDataSolved.then((rmseData) => {
+  resolveMetrics = (jsonData, maeData, rmseData, mapeData, methodList, groundTruth) => {
+    var MetricsDataSolved = Promise.resolve(this.calculateMetrics(jsonData, maeData, rmseData, mapeData, methodList, groundTruth));
+    MetricsDataSolved.then((MetricErrors) => {
       this.setState({
-        rmseData: rmseData},
-      function() {
-        this.updateData();
+        maeData: MetricErrors[0],
+        rmseData: MetricErrors[1],
+        mapeData: MetricErrors[2],
       });
     });
+    sleep(200).then(() => {
+      this.updateData();
+    });
   };
+
+
 
 
   initialize = () => {
@@ -381,8 +325,10 @@ class Evaluation extends Component {
   updateData = () => {
     var jsonData = this.state.jsonData;
     let maxDateRange = [undefined, undefined];
-    let anchorDatapoints = { maeData: [] };
+    //Check EvalGraph to see if it hard reads maeData for anchorDataPoints
+    let anchorDatapoints = { errorData: [] };
     let oldMaxRange = this.state.maxDateRange;
+    // console.log("updateData");
 
     // More json data needed to complete this function for Germany/Poland
 
@@ -398,10 +344,10 @@ class Evaluation extends Component {
         }
       }
     });
-
-    if (oldMaxRange[0] != maxDateRange[0] || oldMaxRange[1] != maxDateRange[1]) {
+    // console.log("Before");
+    if (oldMaxRange[0] != maxDateRange[0] || oldMaxRange[1] != maxDateRange[1] ) {
       var anch_data = [];
-
+      // console.log("After");
       var anch_start = new Date(maxDateRange[0]);
       var anch_end = new Date(maxDateRange[1]);
       anch_start.setDate(anch_start.getDate() - 7);
@@ -418,13 +364,14 @@ class Evaluation extends Component {
         maxDateRange: maxDateRange},
       () => {
         if (this.state.reset == 0) {
+          console.log("initialize");
           this.initialize();
-        }
-        else {
-          this.reloadAll();
         }
       });
     }
+
+    console.log("Reloading ALL");
+    this.reloadAll();
     //this.generateRanking();
     
   };
@@ -436,18 +383,24 @@ class Evaluation extends Component {
     var localFilter = this.isMLMethod(method) ? "ml":"human";
     var graph_data = [];
 
+    // console.log(this.state.metrics);
+    var errorMetric = this.state.maeData;
+    if( this.state.metrics == "MAPE"){
+      console.log("Graphing MAPE");
+      errorMetric = this.state.mapeData;
+    }
+    if(this.state.emtrics == "RMSE"){
+      console.log("Graphing RMSE");
+      errorMetric = this.state.rmseData;
+    }
+
     if (localFilter == this.state.filter || this.state.filter == "all") {
       // average of predictions
       if (timeSpan == "avg") {
-        var errorMetric = this.state.maeData;
-        if( this.state.metrics == "MAPE"){
-          errorMetric = this.state.mapeData;
-        }
-        if(this.state.emtrics == "RMSE"){
-          errorMetric = this.state.rmseData;
-        }
+        
 
         // while (this.state.maeData[method].length == 0) {}
+        console.log(errorMetric);
         for (var date in errorMetric[method][1]) {
           let sum = 0;
           let total = 0;
@@ -500,11 +453,23 @@ class Evaluation extends Component {
               }
             }
             if (total > 0) {
-              graph_data.push({x: this.getDateInFormat(displayDate), y: (sum / total)});
+              if (this.state.emtrics == "RMSE"){
+              graph_data.push({x: this.getDateInFormat(displayDate), y: Math.sqrt(sum / total)});
+              }
+              else
+              {
+                graph_data.push({x: this.getDateInFormat(displayDate), y: (sum / total)});
+              }
             }
           }
           else {
-            graph_data.push({x: this.getDateInFormat(displayDate), y: errorMetric[method][timeSpan][date][region]});
+            if (this.state.emtrics == "RMSE"){
+              graph_data.push({x: this.getDateInFormat(displayDate), y: Math.sqrt(errorMetric[method][timeSpan][date][region])});
+              }
+              else
+              {
+                graph_data.push({x: this.getDateInFormat(displayDate), y: errorMetric[method][timeSpan][date][region]});
+              }
           }
         }
       }
@@ -515,141 +480,143 @@ class Evaluation extends Component {
   };
 
   generateRanking = () => {
-    var timeSpan = this.state.timeSpan;
-    var region = STATES[this.state.country].findIndex(obj => obj === this.state.region[0]); // changed from US_STATES to STATES[this.state.country]
+  //   var timeSpan = this.state.timeSpan;
+  //   var region = STATES[this.state.country].findIndex(obj => obj === this.state.region[0]); // changed from US_STATES to STATES[this.state.country]
+  //   //if we want to create seperate json entries for each baseline error metric we need to change the lines below
+  //   //if ( erroor metric == x)
+  //       //baselineAverageErrorMetric = this.state.errormetric["baseline"]...
+  //   let baselineAverageMAE = this.state.maeData["reich_COVIDhub_baseline"];
+  //   let methodList = this.state.methodList;
 
-    let baselineAverageMAE = this.state.maeData["reich_COVIDhub_baseline"];
-    let methodList = this.state.methodList;
-
-    var rankingTableData = [];
-    let cutOff = 0;
+  //   var rankingTableData = [];
+  //   let cutOff = 0;
    
-    for (var method in methodList) {
-      var methodName = methodList[method];
-      var localFilter = this.isMLMethod(methodName) ? "ml" :"human";
-      var methodType = this.isMLMethod(methodName) ? "ML/AI" : "Human-Expert";
+  //   for (var method in methodList) {
+  //     var methodName = methodList[method];
+  //     var localFilter = this.isMLMethod(methodName) ? "ml" :"human";
+  //     var methodType = this.isMLMethod(methodName) ? "ML/AI" : "Human-Expert";
 
-      let forecastCount = 0;
-      let fromSelectedStartDate = false;
-      let upToSelectedEndDate = false;
-      let updating = false;
-      let sum = 0;
-      let total = 0;
-      let baseline_sum = 0;
-      let averageMAE = 0;
-      let baselineMAE = 0;
-      let relativeMAE = 0;
-      let min_date = new Date(this.state.selectedDateRange[0]);
-      let max_date = new Date(this.state.selectedDateRange[1]);
+  //     let forecastCount = 0;
+  //     let fromSelectedStartDate = false;
+  //     let upToSelectedEndDate = false;
+  //     let updating = false;
+  //     let sum = 0;
+  //     let total = 0;
+  //     let baseline_sum = 0;
+  //     let averageMAE = 0;
+  //     let baselineMAE = 0;
+  //     let relativeMAE = 0;
+  //     let min_date = new Date(this.state.selectedDateRange[0]);
+  //     let max_date = new Date(this.state.selectedDateRange[1]);
 
-      if (localFilter == this.state.filter || this.state.filter == "all") {
-        Promise.resolve(this.getMethodMAE(methodName)).then((methodMAE) => {
-          //console.log(methodMAE);
-          if (timeSpan == "avg") {
-            for (var date in methodMAE[1]) {
-              let curr_date = new Date(date);
-              if (curr_date >= min_date && curr_date <= max_date) {
-                forecastCount++;
-                for (var weeks = 1; weeks <= 4; weeks++) {
-                  if (methodMAE[weeks][date] && baselineAverageMAE[weeks][date]) {
-                    if (region == -1) {
-                      for (var reg in methodMAE[weeks][date]) {
-                        let y = parseInt(methodMAE[weeks][date][reg]);
-                        let y2 = parseInt(baselineAverageMAE[weeks][date][reg]);
-                        if (!isNaN(y) && !isNaN(y2)) {
-                          sum += y;
-                          total++;
-                          baseline_sum += y2;
-                        }
-                      }
-                    }
-                    else {
-                      let y = parseInt(methodMAE[weeks][date][region]);
-                      let y2 = parseInt(baselineAverageMAE[weeks][date][region]);
-                      if (!isNaN(y) && !isNaN(y2)) {
-                        sum += y;
-                        total++;
-                        baseline_sum += y2;
-                      }
-                    }
-                  }
-                }
-              }
-              if( forecastCount > cutOff){
-                cutOff = forecastCount;
-              }
-              if (curr_date == min_date) {
-                fromSelectedStartDate = true;
-              }
-              if (curr_date == max_date) {
-                upToSelectedEndDate = true;
-              }
-              if (curr_date == new Date(this.state.maxDateRange[1])) {
-                updating = true;
-              }
-            }
-          }
-          else {
-            //while (this.state.maeData[methodName].length == 0) {}
-            for (var date in methodMAE[timeSpan]) {
-              let curr_date = new Date(date);
-              if (curr_date >= min_date && curr_date <= max_date) {
-                forecastCount++;
-                if (methodMAE[timeSpan][date] && baselineAverageMAE[timeSpan][date]) {
-                  if (region == -1) {
-                    for (var reg in methodMAE[timeSpan][date]) {
-                      let y = parseInt(methodMAE[timeSpan][date][reg]);
-                      let y2 = parseInt(baselineAverageMAE[timeSpan][date][reg]);
-                      if (!isNaN(y) && !isNaN(y2)) {
-                        sum += y;
-                        total++;
-                        baseline_sum += y2;
-                      }
-                    }
-                  }
-                  else {
-                    let y = parseInt(methodMAE[timeSpan][date][region]);
-                    let y2 = parseInt(baselineAverageMAE[timeSpan][date][region]);
-                    if (!isNaN(y) && !isNaN(y2)) {
-                      sum += y;
-                      total++;
-                      baseline_sum += y2;
-                    }
-                  }
-                }
-              }
-              if( forecastCount > cutOff){
-                cutOff = forecastCount;
-              }
-              if (curr_date == min_date) {
-                fromSelectedStartDate = true;
-              }
-              if (curr_date == max_date) {
-                upToSelectedEndDate = true;
-              }
-              if (curr_date == new Date(this.state.maxDateRange[1])) {
-                updating = true;
-              }
-            }
-          }
+  //     if (localFilter == this.state.filter || this.state.filter == "all") {
+  //       Promise.resolve(this.getMethodMAE(methodName)).then((methodMAE) => {
+  //         //console.log(methodMAE);
+  //         if (timeSpan == "avg") {
+  //           for (var date in methodMAE[1]) {
+  //             let curr_date = new Date(date);
+  //             if (curr_date >= min_date && curr_date <= max_date) {
+  //               forecastCount++;
+  //               for (var weeks = 1; weeks <= 4; weeks++) {
+  //                 if (methodMAE[weeks][date] && baselineAverageMAE[weeks][date]) {
+  //                   if (region == -1) {
+  //                     for (var reg in methodMAE[weeks][date]) {
+  //                       let y = parseInt(methodMAE[weeks][date][reg]);
+  //                       let y2 = parseInt(baselineAverageMAE[weeks][date][reg]);
+  //                       if (!isNaN(y) && !isNaN(y2)) {
+  //                         sum += y;
+  //                         total++;
+  //                         baseline_sum += y2;
+  //                       }
+  //                     }
+  //                   }
+  //                   else {
+  //                     let y = parseInt(methodMAE[weeks][date][region]);
+  //                     let y2 = parseInt(baselineAverageMAE[weeks][date][region]);
+  //                     if (!isNaN(y) && !isNaN(y2)) {
+  //                       sum += y;
+  //                       total++;
+  //                       baseline_sum += y2;
+  //                     }
+  //                   }
+  //                 }
+  //               }
+  //             }
+  //             if( forecastCount > cutOff){
+  //               cutOff = forecastCount;
+  //             }
+  //             if (curr_date == min_date) {
+  //               fromSelectedStartDate = true;
+  //             }
+  //             if (curr_date == max_date) {
+  //               upToSelectedEndDate = true;
+  //             }
+  //             if (curr_date == new Date(this.state.maxDateRange[1])) {
+  //               updating = true;
+  //             }
+  //           }
+  //         }
+  //         else {
+  //           //while (this.state.maeData[methodName].length == 0) {}
+  //           for (var date in methodMAE[timeSpan]) {
+  //             let curr_date = new Date(date);
+  //             if (curr_date >= min_date && curr_date <= max_date) {
+  //               forecastCount++;
+  //               if (methodMAE[timeSpan][date] && baselineAverageMAE[timeSpan][date]) {
+  //                 if (region == -1) {
+  //                   for (var reg in methodMAE[timeSpan][date]) {
+  //                     let y = parseInt(methodMAE[timeSpan][date][reg]);
+  //                     let y2 = parseInt(baselineAverageMAE[timeSpan][date][reg]);
+  //                     if (!isNaN(y) && !isNaN(y2)) {
+  //                       sum += y;
+  //                       total++;
+  //                       baseline_sum += y2;
+  //                     }
+  //                   }
+  //                 }
+  //                 else {
+  //                   let y = parseInt(methodMAE[timeSpan][date][region]);
+  //                   let y2 = parseInt(baselineAverageMAE[timeSpan][date][region]);
+  //                   if (!isNaN(y) && !isNaN(y2)) {
+  //                     sum += y;
+  //                     total++;
+  //                     baseline_sum += y2;
+  //                   }
+  //                 }
+  //               }
+  //             }
+  //             if( forecastCount > cutOff){
+  //               cutOff = forecastCount;
+  //             }
+  //             if (curr_date == min_date) {
+  //               fromSelectedStartDate = true;
+  //             }
+  //             if (curr_date == max_date) {
+  //               upToSelectedEndDate = true;
+  //             }
+  //             if (curr_date == new Date(this.state.maxDateRange[1])) {
+  //               updating = true;
+  //             }
+  //           }
+  //         }
   
-          if( forecastCount != 0){
-            const fitWithinDateRange = fromSelectedStartDate && upToSelectedEndDate;
-            averageMAE = (sum / total).toFixed(2);
-            baselineMAE = (baseline_sum / total);
-            relativeMAE = (averageMAE / baselineMAE).toFixed(3);
-            if (methodName === "reich_COVIDhub_baseline") {
-              relativeMAE = 1;
-            }
+  //         if( forecastCount != 0){
+  //           const fitWithinDateRange = fromSelectedStartDate && upToSelectedEndDate;
+  //           averageMAE = (sum / total).toFixed(2);
+  //           baselineMAE = (baseline_sum / total);
+  //           relativeMAE = (averageMAE / baselineMAE).toFixed(3);
+  //           if (methodName === "reich_COVIDhub_baseline") {
+  //             relativeMAE = 1;
+  //           }
     
-            if (forecastCount && (cutOff == forecastCount)) {
-              rankingTableData[methodName] = {methodName, methodType, averageMAE, relativeMAE, forecastCount, fitWithinDateRange, updating};
-            }
-          }
-        });
-      }
-    }
-    this.setState({rankingTableData: rankingTableData});
+  //           if (forecastCount && (cutOff == forecastCount)) {
+  //             rankingTableData[methodName] = {methodName, methodType, averageMAE, relativeMAE, forecastCount, fitWithinDateRange, updating};
+  //           }
+  //         }
+  //       });
+  //     }
+  //   }
+  //   this.setState({rankingTableData: rankingTableData});
   };
 
   getMethodMAE = (method) => {
@@ -663,7 +630,7 @@ class Evaluation extends Component {
 
   methodIsSelected = method => {
     if (this.state.allMethods && method) {
-      console.log("method already exists")
+      // console.log("method already exists")
       return this.state.allMethods.includes(method);
     }
     return false;
@@ -761,7 +728,7 @@ class Evaluation extends Component {
 
   reloadAll = () => {
     const prevMethods = this.state.allMethods;
-    console.log("Reload ALL");
+    console.log(" in Reload ALL");
     this.setState(
       {
         humanMethods: [],
@@ -770,7 +737,7 @@ class Evaluation extends Component {
       },
       () => {
         prevMethods.forEach(this.addMethod);
-        this.generateRanking();
+        // this.generateRanking();
       }
     );
   };
@@ -790,12 +757,15 @@ class Evaluation extends Component {
   };
 
   handleTimeSpanSelect = e => {
-
+    // var updateGraph = true;
     this.setState({
       timeSpan: e.target.value
-    }, () => { this.updateData();}
-    );
-    console.log(this.state.timeSpan);
+    });
+    sleep(1).then(() => {
+      this.updateData();
+      console.log(this.state.timeSpan);
+    })
+    
   };
 
   handleRegionChange = newRegion => {
@@ -879,6 +849,12 @@ class Evaluation extends Component {
       selectedDateRange: [start, end]
     });
     this.updateData();
+  }
+  handleMetricChange = e =>{
+    this.setState({
+      metrics: e,
+    });
+    this.loadJsonData();
   }
 
   handleCountryChange = e => {
@@ -1006,7 +982,7 @@ class Evaluation extends Component {
                   </Form.Item>
                   {/* TODO: The metrics options have not been implemented. */}
                   <Form.Item label="Metrics" name="metrics">
-                    <Select showSearch defaultValue="MAE">
+                    <Select showSearch defaultValue="MAE" onChange={this.handleMetricChange}>
                       {metricsList.map((m, idx) => (
                         <Option value={m} key={idx}>
                           {m}
