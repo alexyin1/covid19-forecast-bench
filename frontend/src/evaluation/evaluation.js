@@ -315,6 +315,52 @@ class Evaluation extends Component {
     });
   };
 
+
+  calculateRMSE = (jsonData, rmseData, methodList, groundTruth) => {
+    for (var method in methodList) {
+      // console.log("methodList is good");
+      var methodName = methodList[method];
+      for (var weeks = 1; weeks <= 4; weeks++) {
+        for (var date in jsonData[methodName][weeks]) {
+          // console.log("dates are good");
+          var points = jsonData[methodName][weeks][date];
+          if (groundTruth[date] && points) {
+            var raw_y;
+            var gt_y;
+            for (var reg in points) {
+              //console.log("REG: " + reg);
+              raw_y = parseInt(points[reg]);
+              gt_y = parseInt(groundTruth[date][reg]);
+              if (raw_y != "null" &&  gt_y != "null") {
+                rmseData[methodName][weeks][date][reg] = Math.pow((gt_y-raw_y), 2);
+                // console.log("changed");
+
+              }
+              else {
+                rmseData[methodName][weeks][date][reg] = "null";
+                // console.log("changed");
+              }
+            }
+          }
+        }
+      }
+    }
+    return rmseData;
+  };
+
+
+  resolveRMSE = (jsonData, rmseData, methodList, groundTruth) => {
+    var maeDataSolved = Promise.resolve(this.calculateRMSE(jsonData, rmseData, methodList, groundTruth));
+    maeDataSolved.then((rmseData) => {
+      this.setState({
+        rmseData: rmseData},
+      function() {
+        this.updateData();
+      });
+    });
+  };
+
+
   initialize = () => {
     console.log("initialize");
     this.setState({
@@ -329,6 +375,8 @@ class Evaluation extends Component {
       this.generateRanking();
     });
   };
+
+
 
   updateData = () => {
     var jsonData = this.state.jsonData;
@@ -425,7 +473,15 @@ class Evaluation extends Component {
           }
           let displayDate = new Date(date);
           if (total > 0) {
-            graph_data.push({x: this.getDateInFormat(displayDate), y: (sum / total)});
+            if (this.state.emtrics == "RMSE")
+            {
+              graph_data.push({x: this.getDateInFormat(displayDate), y: Math.sqrt(sum / total)});
+            }
+            else
+            {
+              graph_data.push({x: this.getDateInFormat(displayDate), y: (sum / total)});
+            }
+            
           }
         }
       }
