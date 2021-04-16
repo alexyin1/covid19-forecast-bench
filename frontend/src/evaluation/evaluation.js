@@ -131,7 +131,7 @@ class Evaluation extends Component {
       rmseData: {},
       groundTruth: {},
       reset: 0,
-      multiRegion: false,
+      // multiRegion: true,
     };
   }
 
@@ -229,9 +229,7 @@ class Evaluation extends Component {
           methodList: methodList,
           groundTruth: groundTruth},
         function() {
-          // if (methodList.length == 0) {
-          //   console.log("utter failure");
-          // }
+
 
         this.resolveMetrics(jsonData, maeData, rmseData, mapeData, methodList, groundTruth);
         });
@@ -372,7 +370,7 @@ class Evaluation extends Component {
 
     console.log("Reloading ALL");
     this.reloadAll();
-    //this.generateRanking();
+    this.generateRanking();
     
   };
 
@@ -891,7 +889,7 @@ class Evaluation extends Component {
       rankingTableData,
       maxDateRange,
       selectedDateRange,
-      multiRegion,
+      // multiRegion,
     } = this.state;
 
     const methodOptions = methodList
@@ -936,26 +934,16 @@ class Evaluation extends Component {
                   
                   <Form.Item label="Forecast Country" name="forecastCountry">
                     <Select showSearch defaultValue="united_states" onChange={this.handleCountryChange}>
-                      <Option value="germany">
-                        Germany
-                      </Option>
-                      <Option value="poland">
-                        Poland
-                      </Option>
-                      <Option value="united_states">
-                        United States
-                      </Option>
+                      <Option value="germany">Germany</Option>
+                      <Option value="poland">Poland</Option>
+                      <Option value="united_states">United States</Option>
                     </Select>
                   </Form.Item>
 
                   <Form.Item label="Forecast Type" name="forecastType">
                     <Select showSearch defaultValue="state_death_eval" onChange={this.handleForecastTypeSelect}>
-                      <Option value="state_death_eval">
-                        COVID-19 US state-level death forecasts
-                      </Option>
-                      <Option value="state_case_eval">
-                        COVID-19 US state-level case forecasts
-                      </Option>
+                      <Option value="state_death_eval">COVID-19 US state-level death forecasts</Option>
+                      <Option value="state_case_eval">COVID-19 US state-level case forecasts</Option>
                     </Select>
                   </Form.Item>
 
@@ -993,9 +981,7 @@ class Evaluation extends Component {
                   <Form.Item label="Metrics" name="metrics">
                     <Select showSearch defaultValue="MAE" onChange={this.handleMetricChange}>
                       {metricsList.map((m, idx) => (
-                        <Option value={m} key={idx}>
-                          {m}
-                        </Option>
+                        <Option value={m} key={idx}> {m} </Option>
                       ))}
                     </Select>
                   </Form.Item>
@@ -1017,7 +1003,7 @@ class Evaluation extends Component {
                   <Form.Item label="Prediction Date Range" name="dateRange">
                     <Slider
                      range
-                     tooltipVisible
+                    //  tooltipVisible
                      tooltipPlacement="bottom"
                      max={this.getTotalNumberOfWeeks()}
                      tipFormatter={this.getDateFromWeekNumber}
@@ -1025,19 +1011,6 @@ class Evaluation extends Component {
                      />
                   </Form.Item>
 
-                  <Form.Item label="Select Multiple Regions?" name="multiRegion">
-                    <Radio.Group
-                      value={multiRegion}
-                      defaultValue={false}
-                      onChange={e => {
-                        this.setState({
-                          multiRegion: e.target.value,
-                        })
-                      }}>
-                      <Radio value={true}>Yes</Radio>
-                      <Radio value={false}>No</Radio>
-                    </Radio.Group>
-                  </Form.Item>
 
                   <Form.Item label="Select All Regions?">
                     <button
