@@ -3,7 +3,7 @@ import Evalgraph from "./evalgraph";
 import Evalmap from "./evalmap";
 import RankingTable from "./rankingTable";
 import "./evaluation.css";
-import { Form, Select, Row, Col, Radio, Slider } from "antd";
+import { Form, Select, Row, Col, Radio, Slider, Button } from "antd";
 import FormItem from "antd/lib/form/FormItem";
 import ReactGA from "react-ga";
 import _ from "lodash";
@@ -379,7 +379,22 @@ class Evaluation extends Component {
   // goes through each method and grabs the data relative the parameters set
   graphData = method => {
     var timeSpan = this.state.timeSpan;
-    var region = STATES[this.state.country].findIndex(obj => obj === this.state.region[0]);
+    //var region = STATES[this.state.country].findIndex(obj => obj === this.state.region[0]);
+    var regions = [];
+
+    if (this.state.region.includes("states")) {
+      for (var i = 0; i < STATES[this.state.country].length; i++) {
+        regions.push(i);
+      }
+    }
+    else {
+      this.state.region.forEach((reg) => {
+        regions.push(STATES[this.state.country].findIndex(obj => obj === reg));
+      });
+    }
+
+    console.log(regions);
+
     var localFilter = this.isMLMethod(method) ? "ml":"human";
     var graph_data = [];
 
@@ -397,8 +412,6 @@ class Evaluation extends Component {
     if (localFilter == this.state.filter || this.state.filter == "all") {
       // average of predictions
       if (timeSpan == "avg") {
-        
-
         // while (this.state.maeData[method].length == 0) {}
         console.log(errorMetric);
         for (var date in errorMetric[method][1]) {
@@ -406,22 +419,22 @@ class Evaluation extends Component {
           let total = 0;
           for (var weeks = 1; weeks <= 4; weeks++) {
             if (errorMetric[method][weeks][date]) {
-              if (region == -1) {
-                for (var reg in errorMetric[method][weeks][date]) {
+              //if (region == -1) {
+                for (var reg in regions) {
                   let y = parseInt(errorMetric[method][weeks][date][reg]);
                   if (!isNaN(y)) {
                     sum += y;
                     total++;
                   }
                 }
-              }
+              /*}
               else {
                 let y = parseInt(errorMetric[method][weeks][date][region]);
                 if (!isNaN(y)) {
                   sum += y;
                   total++;
                 }
-              }
+              }*/
             }
           }
           let displayDate = new Date(date);
@@ -442,10 +455,10 @@ class Evaluation extends Component {
         // while (this.state.maeData[method].length == 0) {}
         for (var date in errorMetric[method][timeSpan]) {
           let displayDate = new Date(date);
-          if (region == -1) {
+          //if (region == -1) {
             let total = 0;
             let sum = 0;
-            for (var reg in errorMetric[method][timeSpan][date]) {
+            for (var reg in regions) {
               let y = parseInt(errorMetric[method][timeSpan][date][reg]);
               if (!isNaN(y)) {
                 sum += y;
@@ -461,7 +474,7 @@ class Evaluation extends Component {
                 graph_data.push({x: this.getDateInFormat(displayDate), y: (sum / total)});
               }
             }
-          }
+          /*}
           else {
             if (this.state.emtrics == "RMSE"){
               graph_data.push({x: this.getDateInFormat(displayDate), y: Math.sqrt(errorMetric[method][timeSpan][date][region])});
@@ -470,7 +483,7 @@ class Evaluation extends Component {
               {
                 graph_data.push({x: this.getDateInFormat(displayDate), y: errorMetric[method][timeSpan][date][region]});
               }
-          }
+          }*/
         }
       }
     }
@@ -769,40 +782,35 @@ class Evaluation extends Component {
   };
 
   handleRegionChange = newRegion => {
-    var changedRegion;
-    if(newRegion === "states") {
-      changedRegion = new Array(0);
-      changedRegion.push(newRegion);
+    var changedRegion = [];
+
+    if (newRegion == "states") {
+      changedRegion.push("states");
     }
     else {
-      console.log("OLD REGION: " + JSON.stringify(this.state.region));
-      console.log("MULTIREGION: " + this.state.multiRegion);
-      if(this.state.multiRegion !== true) {
-        changedRegion = new Array(0);
+      if (this.state.region.includes("states")) { // all regions are already selected
         changedRegion.push(newRegion);
-        console.log(newRegion + " " + changedRegion);
       }
-      else {
-        if(this.state.region[0] === "states") {
-          changedRegion = new Array(0);
-          changedRegion.push(newRegion);
+      else { // some regions already selected
+        changedRegion = this.state.region;
+        if (this.state.region.includes(newRegion)) {
+          var removeIndex = changedRegion.findIndex(obj => obj === newRegion);
+          changedRegion.splice(removeIndex, 1);
         }
         else {
-          var index = this.state.region.indexOf(newRegion);
-          changedRegion = this.state.region;
-          if(index == -1) {
-            changedRegion.push(newRegion);
-          }
-          else {
-            changedRegion.splice(index, 1);
-          }
+          changedRegion.push(newRegion);
         }
       }
-      console.log("NEW REGION: " + changedRegion);
+  
+      if (changedRegion.length === 0) {
+        changedRegion.push("states");
+      }
     }
+    
+    
 
     this.setState({
-      region: changedRegion,
+      region: changedRegion
     }, () => {
       this.updateData();
 
@@ -875,6 +883,7 @@ class Evaluation extends Component {
       allMethods,
       methodList,
       region,
+      regionIndex,
       metrics,
       metricsList,
       timeSpan,
@@ -954,7 +963,7 @@ class Evaluation extends Component {
                     <Select
                       showSearch
                       placeholder="Select a region"
-                      defaultValue={"states"}
+                      defaultValue={"all"}
                       onChange={this.handleRegionChange}
                     >
                       {regionOptions}
@@ -1029,6 +1038,16 @@ class Evaluation extends Component {
                       <Radio value={false}>No</Radio>
                     </Radio.Group>
                   </Form.Item>
+
+                  <Form.Item label="Select All Regions?">
+                    <button
+                      onClick={e => {
+                        this.handleRegionChange("states");
+                      }}>
+                        Yes
+                    </button>
+                  </Form.Item>
+
                 </Form>
               </Col>
             </Row>
